@@ -1,0 +1,2362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!--
+    MIT License
+    
+    Copyright (c) 2025 NQR
+    
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+    
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+    
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+  -->
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ReSounder</title>
+  
+  <!-- Favicon links -->
+  <link rel="icon" type="image/png" sizes="16x16" href="assets/images/favicon-16x16.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/images/favicon-32x32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/images/apple-touch-icon-180x180.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/images/android-chrome-192x192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="assets/images/android-chrome-512x512.png">
+  <style>
+    /* ============================================
+       INVERTER CSS VARIABLES
+       ============================================ */
+    :root {
+      --bg: #0c1020;
+      --card: #151c3b;
+      --ink: #eef1ff;
+      --dim: #b9c6ef;
+      --border: #2b3868;
+      --accent: #1fc9aa;
+      --accent-hover: #18b79a;
+      --accent-dark: #17b399;
+      --input-bg: #0f1432;
+    }
+
+    /* ============================================
+       BASE STYLES
+       ============================================ */
+    body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    h2 {
+      margin: 16px 0 8px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+    }
+
+    /* ============================================
+       CANVAS
+       ============================================ */
+    canvas {
+      max-width: 95vw;
+      //max-width: 100%;
+      height: auto;
+      margin: 10px 0;
+      background: #000;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+
+    /* ============================================
+       CONTROLS SECTION
+       ============================================ */
+    .controls {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 92vw;
+      max-width: 760px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      margin: 10px 0;
+      box-shadow: 0 10px 30px rgba(0,0,0,.35);
+      overflow: visible;
+    }
+
+    .control-section {
+      width: 100%;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .control-section h3 {
+      margin: 0 0 12px 0;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      text-align: left;
+    }
+
+    .control-section:last-of-type {
+      border-bottom: none;
+    }
+
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 16px;
+      justify-content: center;
+      align-items: end;
+      width: 100%;
+      margin: 6px 0;
+      overflow: visible;
+    }
+
+    /* ============================================
+       FORM ELEMENTS
+       ============================================ */
+    label {
+      font-size: 14px;
+      font-weight: 500;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      color: var(--dim);
+      overflow: visible;
+      position: relative;
+    }
+
+    input[type="number"],
+    select {
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      color: var(--ink);
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-size: 14px;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    input[type="number"]:focus,
+    select:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(31, 201, 170, 0.1);
+    }
+
+    input[type="file"] {
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      color: var(--ink);
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-size: 14px;
+      min-width: 100px;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    input[type="file"]:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(31, 201, 170, 0.1);
+    }
+
+    input[type="file"] {
+      cursor: pointer;
+      padding: 8px 12px;
+      width: auto;
+      min-width: 300px;
+    }
+
+    /* Modern browsers (Chrome, Edge, Firefox, Safari 14+) */
+    input[type="file"]::file-selector-button {
+      background: var(--accent);
+      color: #0b0f14;
+      border: 1px solid var(--accent-dark);
+      border-radius: 8px;
+      padding: 10px 16px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+      letter-spacing: 0.3px;
+      transition: all 0.15s ease;
+      box-shadow: 0 2px 4px rgba(31, 201, 170, 0.2);
+      margin-right: 10px; /* space before filename text */
+    }
+    
+    /* Hover/active to match your button styles */
+    input[type="file"]::file-selector-button:hover {
+      background: var(--accent-hover);
+      border-color: var(--accent-hover);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(31, 201, 170, 0.3);
+    }
+    input[type="file"]::file-selector-button:active {
+      transform: translateY(0);
+      box-shadow: 0 1px 2px rgba(31, 201, 170, 0.2);
+    }
+    
+    /* Safari <14 (legacy WebKit fallback) */
+    input[type="file"]::-webkit-file-upload-button {
+      background: var(--accent);
+      color: #0b0f14;
+      border: 1px solid var(--accent-dark);
+      border-radius: 8px;
+      padding: 10px 16px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+      letter-spacing: 0.3px;
+      transition: all 0.15s ease;
+      box-shadow: 0 2px 4px rgba(31, 201, 170, 0.2);
+      margin-right: 10px;
+    }
+    input[type="file"]::-webkit-file-upload-button:hover {
+      background: var(--accent-hover);
+      border-color: var(--accent-hover);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(31, 201, 170, 0.3);
+    }
+    input[type="file"]::-webkit-file-upload-button:active {
+      transform: translateY(0);
+      box-shadow: 0 1px 2px rgba(31, 201, 170, 0.2);
+    }
+
+
+    input[type="range"] {
+      width: 120px;
+      accent-color: var(--accent);
+    }
+
+    input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    /* Colormap Radio Button List */
+    .colormap-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px;
+      width: 200px;
+    }
+
+    .colormap-option {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 6px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    .colormap-option:hover {
+      background: rgba(31, 201, 170, 0.1);
+    }
+
+    .colormap-option input[type="radio"] {
+      cursor: pointer;
+      accent-color: var(--accent);
+      flex-shrink: 0;
+      margin: 0;
+    }
+
+    .colormap-option input[type="radio"]:checked + .colormap-name {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .colormap-name {
+      font-size: 13px;
+      color: var(--ink);
+      width: 65px;
+      flex-shrink: 0;
+    }
+
+    .option-gradient {
+      height: 8px;
+      border-radius: 2px;
+      width: 90px;
+      flex-shrink: 0;
+      border: 0px solid transparent;
+    }
+
+    .gradient-grayscale {
+      background: linear-gradient(to right, #ffffff, #000000) !important;
+    }
+
+    .gradient-viridis {
+      background: linear-gradient(to right, #440154, #3b528b, #21918c, #5ec962, #fde725) !important;
+    }
+    
+    .gradient-plasma {
+      background: linear-gradient(to right, #0d0887, #7e03a8, #cc4778, #f89540, #f0f921) !important;
+    }
+    
+    .gradient-inferno {
+      background: linear-gradient(to right, #000004, #420a68, #932667, #dd513a, #fca50a, #fcffa4) !important;
+    }
+    
+    .gradient-magma {
+      background: linear-gradient(to right, #000004, #3b0f70, #8c2981, #de4968, #fe9f6d, #fcfdbf) !important;
+    }
+    
+    .gradient-jet {
+      background: linear-gradient(to right, #00007f, #0000ff, #00ffff, #00ff00, #ffff00, #ff0000, #7f0000) !important;
+    }
+    
+    .gradient-hot {
+      background: linear-gradient(to right, #000000, #ff0000, #ffff00, #ffffff) !important;
+    }
+    
+    .gradient-cool {
+      background: linear-gradient(to right, #00ffff, #ff00ff) !important;
+    }
+    
+    .gradient-parula {
+      background: linear-gradient(to right, #352a87, #0f5cdd, #00a6ff, #ffed00, #ff4d00) !important;
+    }   
+
+    /* ============================================
+       COLORMAP DROPDOWN WITH VISUAL PREVIEWS
+       ============================================ */
+    #colormapSelect {
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      color: var(--ink);
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-size: 14px;
+      cursor: pointer;
+      min-width: 180px;
+    }
+
+    #colormapSelect option {
+      background: var(--input-bg);
+      color: var(--ink);
+      padding: 8px;
+      font-size: 14px;
+    }
+
+    /* ============================================
+       BUTTONS - TEAL/CYAN ACCENT
+       ============================================ */
+    button {
+      background: var(--accent);
+      color: #0b0f14;
+      border: 1px solid var(--accent-dark);
+      border-radius: 8px;
+      padding: 10px 16px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+      letter-spacing: 0.3px;
+      transition: all 0.15s ease;
+      box-shadow: 0 2px 4px rgba(31, 201, 170, 0.2);
+    }
+
+    button:hover {
+      background: var(--accent-hover);
+      border-color: var(--accent-hover);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(31, 201, 170, 0.3);
+    }
+
+    button:active {
+      transform: translateY(0);
+      box-shadow: 0 1px 2px rgba(31, 201, 170, 0.2);
+    }
+
+    button:disabled {
+      background: #1a2047;
+      border-color: var(--border);
+      color: var(--dim);
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    /* Special styling for primary action buttons */
+    #invertBtn,
+    #downloadBtn {
+      font-size: 15px;
+      padding: 12px 20px;
+      min-width: 140px;
+    }
+
+    /* ============================================
+       AUDIO PLAYER
+       ============================================ */
+    audio {
+      width: 100%;
+      max-width: 760px;
+      margin: 6px 0 12px;
+      border-radius: 8px;
+    }
+
+    /* ============================================
+       DEBUG LOG
+       ============================================ */
+    .debug {
+      background: var(--card);
+      padding: 12px;
+      margin-top: 10px;
+      width: 92vw;
+      max-width: 760px;
+      max-height: 300px;
+      overflow: auto;
+      font-size: 12px;
+      font-family: 'Courier New', monospace;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      text-align: left;
+      white-space: pre-wrap;
+      box-shadow: 0 4px 12px rgba(0,0,0,.25);
+    }
+
+    /* ============================================
+       HIGHLIGHTED INPUTS
+       ============================================ */
+    .highlight-input {
+      background: rgba(31, 201, 170, 0.08) !important;
+      border-color: var(--accent) !important;
+    }
+
+    /* ============================================
+       TIPS AND TROUBLESHOOTING
+       ============================================ */
+    .tip-footer {
+      margin-top: 0px;
+      margin-bottom: 0px;
+      padding: 0px;
+      font-size: 11px;
+      color: var(--dim);
+      opacity: 0.7;
+      cursor: pointer;
+      transition: opacity 0.2s ease;
+    }
+
+    .tip-footer:hover {
+      opacity: 1;
+    }
+
+    .tip-modal {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: var(--card);
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      max-width: 500px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0,0,0,.6);
+      z-index: 1000;
+    }
+
+    .tip-modal.show {
+      display: block;
+    }
+
+    .tip-modal h3 {
+      text-align: center;
+      margin-top: 0;
+      color: var(--ink);
+    }
+
+    .tip-modal pre {
+      text-align: left;
+      white-space: pre-wrap;
+      font-size: 11px;
+      line-height: 1.5;
+      color: var(--dim);
+    }
+
+    .tip-modal pre b{
+      font-size: 14px;
+    }
+
+    .tip-modal-close {
+      float: right;
+      cursor: pointer;
+      font-size: 24px;
+      color: var(--dim);
+      transition: color 0.2s ease;
+    }
+
+    .tip-modal-close:hover {
+      color: var(--ink);
+    }
+
+    .tip-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      z-index: 999;
+    }
+
+    .tip-overlay.show {
+      display: block;
+    }
+
+    /* ============================================
+       LICENSE FOOTER
+       ============================================ */
+    .license-footer {
+      margin-top: 30px;
+      margin-bottom: 20px;
+      padding: 10px;
+      font-size: 11px;
+      color: var(--dim);
+      opacity: 0.7;
+      cursor: pointer;
+      transition: opacity 0.2s ease;
+    }
+
+    .license-footer:hover {
+      opacity: 1;
+    }
+
+    .license-modal {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: var(--card);
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      max-width: 500px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0,0,0,.6);
+      z-index: 1000;
+    }
+
+    .license-modal.show {
+      display: block;
+    }
+
+    .license-modal h3 {
+      margin-top: 0;
+      color: var(--ink);
+    }
+
+    .license-modal pre {
+      white-space: pre-wrap;
+      font-size: 11px;
+      line-height: 1.5;
+      color: var(--dim);
+    }
+
+    .license-modal-close {
+      float: right;
+      cursor: pointer;
+      font-size: 24px;
+      color: var(--dim);
+      transition: color 0.2s ease;
+    }
+
+    .license-modal-close:hover {
+      color: var(--ink);
+    }
+
+    .license-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      z-index: 999;
+    }
+
+    .license-overlay.show {
+      display: block;
+    }
+
+    /* ============================================
+       RESPONSIVE DESIGN
+       ============================================ */
+    @media (max-width: 640px) {
+      .controls {
+        padding: 16px 12px;
+        width: 95vw;
+      }
+
+      .row {
+        gap: 8px 12px;
+      }
+
+      label {
+        font-size: 13px;
+      }
+
+      input[type="number"],
+      select {
+        font-size: 13px;
+        padding: 5px 7px;
+      }
+
+      input[type="file"] {
+        margin: 8px;
+        padding: 8px 12px;
+        background: var(--input-bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        color: var(--ink);
+        cursor: pointer;
+        min-width: 200px;
+        font-size: 14px;
+      }
+
+      button {
+        padding: 8px 14px;
+        font-size: 13px;
+      }
+
+      #invertBtn,
+      #downloadBtn {
+        font-size: 14px;
+        padding: 10px 16px;
+        min-width: 120px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <img src="assets/images/logo.png" alt="ReSounder Logo" style="max-width: 200px; height: auto; margin: 20px 0 10px;">
+  <h2>ReSounder</h2>
+  <p style="color: var(--dim); font-size: 14px; margin: -5px 0 15px; font-style: italic;">A lightweight spectrogram inverter by NQR</p>
+  
+  <div class="controls">
+    <!-- Hidden controls that maintain values -->
+    <div style="display:none;">
+      <label>marginLeft <input type="number" id="marginLeft" value="0" step="1"></label>
+      <label id="cropHeightLabel">cropHeight <input type="number" id="cropHeight" value="193" step="1"></label>
+      <label><input type="checkbox" id="applyFloor" checked>Apply low-level floor</label>
+    </div>
+
+    <div class="control-section">
+      <!-- File input at the top -->
+      <h3>🖼️ Spectrogram Input</h3>
+      <div style="margin: 10px 0;">
+        <input type="file" id="imageInput" accept="image/*">
+        <span style="color: var(--dim); font-size: 13px; font-style: italic;">or Ctrl+V to paste</span>
+      </div>
+      <!-- Canvas preview moved above controls -->
+      <canvas id="canvas"></canvas>
+  
+      <!-- Tips & Troubleshooting -->
+      <div class="tip-footer" id="tipLink">
+        Tips for getting good results
+      </div>
+    
+      <!-- Tip Modal -->
+      <div class="tip-overlay" id="tipOverlay"></div>
+      <div class="tip-modal" id="tipModal">
+        <span class="tip-modal-close" id="tipClose">&times;</span>
+        <h3>Tips & Troubleshooting</h3>
+        <pre>
+<ol>
+Best tip for future troubleshooting: experiment until you gain an intuition about common issues.
+
+<li><b>Speech sounds distorted or "robotic"</b>
+Symptom: Vowels are smeared, consonants feel metallic or synthetic.
+Likely cause: Frequency axis scale does not match original spectrogram.
+Fix: Try switching Frequency Scale (e.g., Linear ? Log).  Ensure Min/Max Frequency align with the original signal's content.</li>
+
+<li><b>Audio is the wrong pitch (too high or too low)</b>
+Symptom: Everything sounds like chipmunks or deep giants.
+Likely cause: Frequency bounds do not match the image's real spectral range. The height of the spectrogram determines the musical pitch mapping.
+Fix: Increase Max Frequency if the audio sounds too deep. Decrease Min Frequency if the audio sounds too high.</li>
+
+<li><b>Audio timing seems stretched or compressed</b>
+Symptom: Speech rate or tempo sounds wrong.
+Likely cause: Horizontal scale mismatch. Time axis scaling changes the actual duration mapping.
+Fix: Adjust Assumed Duration (sec) to match original export.  Re-render preview with new value before reconstruction.</li>
+
+<li><b>Audio is just loud impulsive noise</b>
+Symptom: Energy bursts appear instead of smooth tonal content.
+Likely cause: FFT size too small for the image's time resolution. If the time window is too short, harmonic structure collapses into broadband transients.
+Fix: Increase FFT Size to improve frequency resolution. Reduce Assumed Duration (sec) if needed to balance performance. Ideal FFT sizes for speech sampled at 44.1-48 kHz are around 2048 and 4096.</li>
+
+<li><b>Audio sounds "sing-songy"</b>
+Symptom: Sustained tones rise and fall unnaturally, creating a melodic lilt that was not present in the original audio.
+Likely cause: The FFT size is too large, causing excessive smoothing over time and smearing rapid changes in pitch and articulation.
+Fix: Reduce FFT Size to improve time resolution, preserving more natural speech and transient detail. Ideal FFT sizes for speech sampled at 44.1-48 kHz are around 2048 and 4096.</li>
+
+<li><b>Audio feels muffled or missing detail</b>
+Symptom: High-frequency or Low-frequency content is dull or absent, or not enough detail in spectrogram.
+Likely cause: The spectrogram's maximum frequency set too low, or minimum frequency set too high, or spectrogram height too small, or FFT size is too small, or Noise Floor (dB) is too small. Nonlinear scales compress/stretch near the top/bottom of spectrograms.
+Fix if you didn't create the spectrogram: Check if the frequency scale was exported as log but decoded linear. Increase Noise Floor (dB).
+Fix if you created the spectrogram: Raise the maximum frequency, or lower the minimum frequency, or increase FFT size, or increase image height. Use Linear scale instead of Log, Mel or Bark to maximize detail in the spectrogram.</li>
+
+<li><b>Audio sounds like white noise</b>
+Symptom: Audio sounds like white/broadband noise though the waveform appears correct.
+Likely cause: The colormap is being interpreted in the wrong orientation.
+Fix: Toggle Invert Colors to correct the intensity mapping.</li>
+
+<li><b>Audio is too quiet or fades into silence</b>
+Symptom: Everything is faint though the waveform appears correct.
+Likely cause: Too wide a Dynamic Range or incorrect intensity normalization. Very low pixel values correspond to extreme attenuation in dB space.
+Fix: Reduce Dynamic Range (dB). Increase Noise Floor (dB). Ensure color inversion (if applied) matches original export. Increase Pre-gain or Post-gain.</li>
+
+<li><b>Audio has a high-pitched hissing floor</b>
+Symptom: Constant noise underlying all playback.
+Likely cause: Noise pixels mapped to non-zero magnitude during dB-to-linear conversion. Small values near the noise floor get amplified in reconstruction.
+Fix: Decrease Noise Floor (dB).  Increase Dynamic Range (dB) slightly.</li>
+
+<li><b>Audio has "underwater" / "phasing" artifacts</b>
+Symptom: Warbly, chorus-like sound.
+Likely cause: Phase propagation struggling due to abrupt changes. 
+Fix: Ensure FFT Size & Assumed Duration (sec) is close to original. Unfortunately, this is the main symptom of phase reconstruction and can't be entirely removed.</li>
+</ol>
+        </pre>
+      </div>
+    </div>
+
+    <!-- SECTION: Basic Settings -->
+    <div class="control-section">
+      <h3>⚙️ Basic Settings</h3>
+
+      <div class="row">
+        <label id="sampleRateLabel" style="cursor:pointer" title="Double-click to reset">Sample Rate (Hz) <input type="number" id="sampleRate" value="48000" min="8000" max="192000" step="1000"></label>
+        <label id="fftSizeLabel" style="cursor:pointer" title="Double-click to reset">FFT Size <select id="fftSize"><option value="256">256</option><option value="512">512</option><option value="1024">1024</option><option value="2048" selected>2048</option><option value="4096">4096</option><option value="8192">8192</option><option value="16384">16384</option></select></label>
+        <label id="assumedDurationLabel">Assumed Duration (sec) <input type="number" id="assumedDurationSec" value="1.0" step="0.1" min="0.1" style="padding:4px 8px; border-radius:6px; width:90px;"></label>
+      </div>
+      <div class="row">
+        <label id="freqScaleLabel" style="cursor:pointer" title="Double-click to reset">Frequency Scale <select id="freqScale"><option value="linear" selected>Linear</option><option value="log">Log</option><option value="mel">Mel</option><option value="bark">Bark</option></select></label>
+        <label id="minFreqLabel" style="cursor:pointer" title="Double-click to reset">Min Frequency (Hz) <input type="number" id="minFreq" value="0" step="1"></label>
+        <label id="maxFreqLabel" style="cursor:pointer" title="Double-click to reset">Max Frequency (Hz) <input type="number" id="maxFreq" value="4500" step="1"></label>
+      </div>
+    </div>
+
+    <!-- SECTION: Image Interpretation -->
+    <div class="control-section">
+      <h3>🎨 Image Interpretation</h3>
+      <div class="row">
+        <div style="display: flex; align-items: flex-start; gap: 16px;">
+          <div>
+            <label style="display: block; margin-bottom: 8px; color: var(--dim);">Colormap</label>
+            <div class="colormap-list">
+              <label class="colormap-option">
+                <input type="radio" name="colormap" value="grayscale" checked>
+                <span class="colormap-name">Grayscale</span>
+                <div class="option-gradient gradient-grayscale"></div>
+              </label>
+              
+              <label class="colormap-option">
+                <input type="radio" name="colormap" value="viridis">
+                <span class="colormap-name">Viridis</span>
+                <div class="option-gradient gradient-viridis"></div>
+              </label>
+              
+              <label class="colormap-option">
+                <input type="radio" name="colormap" value="plasma">
+                <span class="colormap-name">Plasma</span>
+                <div class="option-gradient gradient-plasma"></div>
+              </label>
+              
+              <label class="colormap-option">
+                <input type="radio" name="colormap" value="inferno">
+                <span class="colormap-name">Inferno</span>
+                <div class="option-gradient gradient-inferno"></div>
+              </label>
+              
+              <label class="colormap-option">
+                <input type="radio" name="colormap" value="magma">
+                <span class="colormap-name">Magma</span>
+                <div class="option-gradient gradient-magma"></div>
+              </label>
+              
+              <label class="colormap-option">
+                <input type="radio" name="colormap" value="jet">
+                <span class="colormap-name">Jet</span>
+                <div class="option-gradient gradient-jet"></div>
+              </label>
+              
+              <label class="colormap-option">
+                <input type="radio" name="colormap" value="hot">
+                <span class="colormap-name">Hot</span>
+                <div class="option-gradient gradient-hot"></div>
+              </label>
+              
+              <label class="colormap-option">
+                <input type="radio" name="colormap" value="cool">
+                <span class="colormap-name">Cool</span>
+                <div class="option-gradient gradient-cool"></div>
+              </label>
+              
+              <label class="colormap-option">
+                <input type="radio" name="colormap" value="parula">
+                <span class="colormap-name">Parula</span>
+                <div class="option-gradient gradient-parula"></div>
+              </label>
+            </div>
+            
+            <label style="display: flex; flex-direction: row; align-items: center; gap: 8px; margin-top: 8px; width: fit-content; margin-left: auto; margin-right: auto; cursor: pointer;">
+              <input type="checkbox" id="invertColorsIn" style="margin: 0;">
+              <span>Invert Colors</span>
+            </label>
+          </div>
+        
+        <select id="colormapSelect" style="display: none;">
+          <option value="grayscale">Grayscale (default)</option>
+          <option value="viridis">Viridis</option>
+          <option value="plasma">Plasma</option>
+          <option value="inferno">Inferno</option>
+          <option value="magma">Magma</option>
+          <option value="jet">Jet (rainbow)</option>
+          <option value="hot">Hot</option>
+          <option value="cool">Cool</option>
+          <option value="parula">Parula</option>
+        </select>
+      </div>
+      <div class="row">
+        <label id="dynRangeLabel" style="cursor:pointer" title="Double-click to reset">Dynamic Range (dB) <input type="number" id="dynRange" value="40" min="10" max="140" step="1"></label>
+        <label>Noise Floor (dB) <input type="number" id="lowFloorDb" value="40" min="20" max="120" step="1"></label>
+      </div>
+    </div>
+
+    <!-- SECTION: Phase Reconstruction -->
+    <div class="control-section">
+      <h3>🔄 Phase Reconstruction</h3>
+      <div class="row">
+        <label>Method
+          <select id="phaseMethod">
+            <option value="running">Running-sine (fast)</option>
+            <option value="griffinlim" selected>Griffin-Lim</option>
+            <option value="pghi_like">PGHI (approx)</option>
+            <option value="pghi_true">PGHI (true)</option>
+          </select>
+        </label>
+        <label>Griffin-Lim Iterations <input type="number" id="iterations" value="24" min="1" max="50" step="1"></label>
+      </div>
+      <div class="row">
+        <label>Pre-Gain <input type="number" id="preGainSlider" min="0.01" max="10.0" step="0.01" value="0.05"></label>
+        <label>Post-Gain <input type="number" id="postGainSlider" min="0.1" max="10.0" step="0.1" value="1.0"></label>
+        <label style="display: flex; flex-direction: row; align-items: center; gap: 8px;"><input type="checkbox" id="reverseCheckbox">Reverse Audio</label>
+      </div>
+    </div>
+
+    <!-- SECTION: Post-Processing -->
+    <div class="control-section">
+      <h3>✨ Post-Processing (Not recommended)</h3>
+      <div class="row">
+        <label style="display: flex; flex-direction: row; align-items: center; gap: 8px;"><input type="checkbox" id="postSmooth">Post-reconstruction Smoother</label>
+        <label>Window ms <input type="number" id="postSmoothMs" value="10" min="1" max="200" step="1"></label>
+      </div>
+      <div class="row">
+        <label style="display: flex; flex-direction: row; align-items: center; gap: 8px;"><input type="checkbox" id="applySmoothTime">Temporal Smoothing (3-col)</label>
+        <label style="display: flex; flex-direction: row; align-items: center; gap: 8px;"><input type="checkbox" id="applyRolloff" checked>High-end Roll-off</label>
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <div class="controls">
+    <div class="control-section">
+      <h3>🎵 Inverted Audio</h3>
+      <!-- Volume Warning -->
+      <div style="width: 90vw; max-width: 700px; background: rgba(248, 149, 64, 0.15); border: 1px solid #f89540; border-radius: 8px; padding: 12px 16px; margin: 10px 0; text-align: center;">
+        <span style="color: #f89540; font-weight: 600;">WARNING:</span>
+        <span style="color: var(--ink); font-size: 13px; font-weight: 600;"> Lower your volume before processing. Inversion may produce unexpectedly loud output.</span>
+      </div>
+  
+      
+      <!-- Action Buttons -->
+      <div class="row" style="margin-top: 20px;">
+        <button id="invertBtn" type="button">Invert Spectrogram</button>
+        <button id="downloadBtn" type="button" style="display:none">Download Audio</button>
+      </div>
+      <audio id="audioPlayer" controls></audio>
+    </div>
+
+    <div class="debug" id="log">Ready.</div>
+  </div>
+
+  <script>
+    // ============================================
+    // COLORMAP RADIO BUTTON HANDLER
+    // ============================================
+    (function initColormapRadios() {
+      const radios = document.querySelectorAll('input[name="colormap"]');
+      const hiddenSelect = document.getElementById('colormapSelect');
+      
+      radios.forEach(radio => {
+        radio.addEventListener('change', (e) => {
+          if (e.target.checked) {
+            // Update hidden select to maintain existing functionality
+            hiddenSelect.value = e.target.value;
+            
+            // Trigger change event on the hidden select
+            const event = new Event('change', { bubbles: true });
+            hiddenSelect.dispatchEvent(event);
+          }
+        });
+      });
+    })();
+
+    // ============================================
+    // MAIN APPLICATION CODE
+    // ============================================
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently:true });
+    ctx.imageSmoothingEnabled = false;
+
+    const __SRGB_TO_LINEAR = new Float32Array(256);
+    (function buildSRGBLUT(){
+      for(let i=0;i<256;i++){
+        const cs = i / 255;
+        __SRGB_TO_LINEAR[i] = (cs <= 0.04045) ? (cs / 12.92) : Math.pow((cs + 0.055) / 1.055, 2.4);
+      }
+    })();
+    
+    function srgb8ToLinear01(u8){
+      return __SRGB_TO_LINEAR[(u8 & 255) >>> 0];
+    }
+
+    const logEl = document.getElementById('log');
+    
+    function log(m){
+      const msg = String(m).replace(/\\n/g, '\n');
+      if(logEl.textContent && !logEl.textContent.endsWith('\n')) logEl.textContent += '\n';
+      logEl.textContent += msg;
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+    
+    function setStatus(m){
+      const msg = String(m).replace(/\\n/g, '\n');
+      logEl.textContent = msg;
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+    
+    function yieldUI(){ return new Promise(r=>requestAnimationFrame(r)); }
+
+    function __getPreGain(){
+      const el = document.getElementById('preGainSlider');
+      const v = el ? parseFloat(el.value) : 1.0;
+      return Number.isFinite(v) ? v : 1.0;
+    }
+
+    function isPow2(n){ return n>0 && (n & (n-1))===0; }
+
+    function nearestPow2(n){
+      if(!isFinite(n) || n<=0) return 2048;
+      let p = 1;
+      while(p<n) p<<=1;
+      const lower = p>>1;
+      if(lower===0) return p;
+      return (n-lower <= p-n)? lower : p;
+    }
+
+    function enforceFFTInput(){
+      const el = document.getElementById('fftSize');
+      if(!el) return;
+      const raw = parseInt(el.value, 10);
+      if(!isPow2(raw)){
+        const fixed = nearestPow2(raw);
+        el.value = String(fixed);
+        if(typeof log === 'function') log(`FFT size must be a power of two. Adjusted to ${fixed}.`);
+      }
+    }
+
+    let __nanWarned = false;
+
+    function anyBad(arr){
+      if(!arr) return false;
+      for(let i=0;i<arr.length;i++){
+        const v = arr[i];
+        if(!Number.isFinite(v) || Number.isNaN(v)) return true;
+      }
+      return false;
+    }
+
+    function warnNaNs(stage, notes){
+      if(__nanWarned) return;
+      __nanWarned = true;
+      const tips = [
+        "Confirm px/sec is nonzero and matches the PNG time scale.",
+        "Ensure minFreq is less than maxFreq and crop height matches the image rows.",
+        "Try a smaller dynRange.",
+        "Use an FFT size that is a power of 2 and not much larger than about 2 times the crop height.",
+        "If using GL or PGHI, try fewer iterations to isolate issues.",
+        "Use dB offset 0 and make sure the sample rate matches the source."
+      ].join("\\n");
+      log(`Warning: invalid numeric values detected at ${stage}.\\n${notes||""}\\nHints:\\n${tips}`);
+    }
+
+    // Double-click-to-reset handlers
+    (function(){
+      const cropLab = document.getElementById('cropHeightLabel');
+      const cropInp = document.getElementById('cropHeight');
+      if(cropLab && cropInp){
+        cropLab.ondblclick = ()=>{
+          try{
+            const h = document.getElementById('canvas')?.height;
+            if(h && h>0){ cropInp.value = String(h); }
+          }catch(_e){}
+        };
+      }
+
+      const srLab = document.getElementById('sampleRateLabel');
+      const srInp = document.getElementById('sampleRate');
+      if(srLab && srInp){
+        srLab.ondblclick = ()=>{
+          const sr = Number(window.__lastMeta?.sampleRate);
+          if(Number.isFinite(sr) && sr>0){ srInp.value = String(sr|0); }
+        };
+      }
+
+      const fftLab = document.getElementById('fftSizeLabel');
+      const fftSel = document.getElementById('fftSize');
+      if(fftLab && fftSel){
+        fftLab.ondblclick = ()=>{
+          const n = Number(window.__lastMeta?.fftSize);
+          if(Number.isFinite(n) && n>0){
+            let v = String(n|0);
+            const options = Array.from(fftSel.options).map(o=>o.value);
+            if(!options.includes(v)){
+              const pow2 = (x)=> x>0 && (x & (x-1))===0;
+              let m = n;
+              if(!pow2(m)){ let p=1; while(p<m) p<<=1; const lo=p>>1; m = (m-lo<=p-m)? lo : p; }
+              v = String(m);
+              if(!options.includes(v)){
+                const opt = document.createElement('option'); opt.value=v; opt.textContent=v; fftSel.appendChild(opt);
+              }
+            }
+            fftSel.value = v;
+          }
+        };
+      }
+
+      const minFreqLab = document.getElementById('minFreqLabel');
+      const minFreqInp = document.getElementById('minFreq');
+      if(minFreqLab && minFreqInp){
+        minFreqLab.ondblclick = ()=>{
+          const v = Number(window.__lastMeta?.minHz);
+          if(Number.isFinite(v) && v>=0){ minFreqInp.value = String(v); }
+        };
+      }
+
+      const maxFreqLab = document.getElementById('maxFreqLabel');
+      const maxFreqInp = document.getElementById('maxFreq');
+      if(maxFreqLab && maxFreqInp){
+        maxFreqLab.ondblclick = ()=>{
+          const v = Number(window.__lastMeta?.maxHz);
+          if(Number.isFinite(v) && v>0){ maxFreqInp.value = String(v); }
+        };
+      }
+
+      const dynRangeLab = document.getElementById('dynRangeLabel');
+      const dynRangeInp = document.getElementById('dynRange');
+      if(dynRangeLab && dynRangeInp){
+        dynRangeLab.ondblclick = ()=>{
+          const v = Number(window.__lastMeta?.dynRange);
+          if(Number.isFinite(v) && v>0){ dynRangeInp.value = String(v); }
+        };
+      }
+
+      const invertColorsEl = document.getElementById('invertColorsIn');
+      const invertColorsLab = invertColorsEl ? invertColorsEl.parentElement : null;
+      if(invertColorsEl && invertColorsLab){
+        invertColorsLab.ondblclick = ()=>{
+          const m = window.__lastMeta || {};
+          const v = (m.invertColors!=null) ? String(m.invertColors).toLowerCase() : null;
+          if(v===null) return;
+          invertColorsEl.checked = (v==='1'||v==='true');
+        };
+      }
+
+      const freqScaleLab = document.getElementById('freqScaleLabel');
+      const freqScaleSel = document.getElementById('freqScale');
+      if(freqScaleLab && freqScaleSel){
+        freqScaleLab.ondblclick = ()=>{
+          const meta = window.__lastMeta || {};
+          const v = (meta.freqScale || meta.scale);
+          if(v && (v==='linear' || v==='log' || v==='mel' || v==='bark')) freqScaleSel.value = v;
+        };
+      }
+    })();
+
+    document.getElementById('invertBtn').addEventListener('click', processImage);
+
+    // ============================================
+    // COLORMAP CONVERSION FUNCTIONS
+    // ============================================
+    // Build gradient from key colors (matching SpectroGhost's method)
+    function buildGradientArray(colors) {
+      const result = [];
+      const n = colors.length - 1;
+      for(let i = 0; i < 256; i++) {
+        const t = (i / 255);
+        const s = t * n;
+        const idx = Math.min(Math.floor(s), n - 1);
+        const frac = s - idx;
+        const c0 = colors[idx];
+        const c1 = colors[idx + 1];
+        const r = Math.round(c0[0] + (c1[0] - c0[0]) * frac);
+        const g = Math.round(c0[1] + (c1[1] - c0[1]) * frac);
+        const b = Math.round(c0[2] + (c1[2] - c0[2]) * frac);
+        result.push([r, g, b]);
+      }
+      return result;
+    }
+
+    const COLORMAP_DATA = {
+      grayscale: null, // handled specially in rgbToColormapValue
+      viridis: buildGradientArray([[68,1,84],[59,82,139],[33,145,140],[94,201,98],[253,231,37]]),
+      plasma: buildGradientArray([[13,8,135],[126,3,168],[204,71,120],[248,149,64],[240,249,33]]),
+      inferno: buildGradientArray([[0,0,4],[66,10,104],[147,81,58],[221,81,10],[252,255,164]]),
+      magma: buildGradientArray([[0,0,4],[59,15,112],[140,41,129],[222,73,104],[254,159,109],[252,253,191]]),
+      jet: buildGradientArray([[0,0,127],[0,0,255],[0,255,255],[0,255,0],[255,255,0],[255,0,0],[127,0,0]]),
+      hot: buildGradientArray([[0,0,0],[255,0,0],[255,255,0],[255,255,255]]),
+      cool: buildGradientArray([[0,255,255],[255,0,255]]),
+      parula: buildGradientArray([[53,42,135],[15,92,221],[0,166,255],[255,237,0],[255,77,0]])
+    };
+
+    // Convert RGB colormap value to grayscale intensity (0-1)
+    // This finds the closest colormap entry and returns its position in the gradient
+    function rgbToColormapValue(r, g, b, colormapName) {
+      if(colormapName === 'grayscale') {
+        // Standard grayscale: use luminance
+        return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+      }
+      
+      const colormap = COLORMAP_DATA[colormapName];
+      if(!colormap) return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+      
+      // Find closest colormap entry
+      let minDist = Infinity;
+      let bestIdx = 0;
+      
+      for(let i = 0; i < colormap.length; i++) {
+        const [cr, cg, cb] = colormap[i];
+        const dr = r - cr;
+        const dg = g - cg;
+        const db = b - cb;
+        const dist = dr*dr + dg*dg + db*db;
+        
+        if(dist < minDist) {
+          minDist = dist;
+          bestIdx = i;
+        }
+      }
+      
+      // Return normalized position in colormap (0-1)
+      return 1.0 - bestIdx / (colormap.length - 1);
+    }
+
+    
+
+function _bilinearSampleGray(u8, w, h, fx, fy, colormapName){
+  const x0 = Math.max(0, Math.min(w-1, Math.floor(fx)));
+  const y0 = Math.max(0, Math.min(h-1, Math.floor(fy)));
+  const x1 = Math.min(w-1, x0+1);
+  const y1 = Math.min(h-1, y0+1);
+  const tx = fx - x0;
+  const ty = fy - y0;
+  const i00 = (y0*w + x0)*4;
+  const i10 = (y0*w + x1)*4;
+  const i01 = (y1*w + x0)*4;
+  const i11 = (y1*w + x1)*4;
+  
+  // Sample RGB values
+  const r00 = u8[i00], g00 = u8[i00+1], b00 = u8[i00+2];
+  const r10 = u8[i10], g10 = u8[i10+1], b10 = u8[i10+2];
+  const r01 = u8[i01], g01 = u8[i01+1], b01 = u8[i01+2];
+  const r11 = u8[i11], g11 = u8[i11+1], b11 = u8[i11+2];
+  
+  // Interpolate RGB
+  const r = r00 + (r10 - r00)*tx + (r01 - r00)*ty + (r11 - r01 - r10 + r00)*tx*ty;
+  const g = g00 + (g10 - g00)*tx + (g01 - g00)*ty + (g11 - g01 - g10 + g00)*tx*ty;
+  const b = b00 + (b10 - b00)*tx + (b01 - b00)*ty + (b11 - b01 - b10 + b00)*tx*ty;
+  
+  // Convert using colormap
+  return rgbToColormapValue(r, g, b, colormapName || 'grayscale') * 255;
+}
+
+function _resample2DGray(srcRGBA, srcW, srcH, dstW, dstH, colormapName){
+  const out = new Float32Array(dstW*dstH);
+  const sx = (srcW - 1) / Math.max(1, dstW - 1);
+  const sy = (srcH - 1) / Math.max(1, dstH - 1);
+  for(let y=0;y<dstH;y++){
+    const fy = y * sy;
+    const rowOff = y*dstW;
+    for(let x=0;x<dstW;x++){
+      const fx = x * sx;
+      out[rowOff + x] = _bilinearSampleGray(srcRGBA, srcW, srcH, fx, fy, colormapName) / 255;
+    }
+  }
+  return out;
+}
+
+async function processImage(){
+      try{ enforceFFTInput(); }catch(_e){}
+      const _fftEl = document.getElementById('fftSize');
+      if(_fftEl){
+        const _v = parseInt(_fftEl.value,10);
+        if(!isPow2(_v)){
+          log('FFT size must be a power of two. Please choose 256, 512, 1024, 2048, 4096, 8192 or 16384.');
+          return;
+        }
+      }
+
+      setStatus('Processing');
+      const file = document.getElementById('imageInput').files[0];
+      
+      // Check if canvas has content (either from file or paste)
+      if(!file && (canvas.width === 0 || canvas.height === 0)){ 
+        alert('Please select or paste an image'); 
+        return; 
+      }
+      
+      const reverse = document.getElementById('reverseCheckbox').checked;
+      const preGain = parseFloat(preGainSlider.value);
+
+      const marginLeft = parseInt(document.getElementById('marginLeft').value,10) || 0;
+      const cropHeight = parseInt(document.getElementById('cropHeight').value,10) || 192;
+      const sampleRate = Math.max(4000, parseInt(document.getElementById('sampleRate').value,10) || 44100);
+      const fftSize = Math.max(256, parseInt(document.getElementById('fftSize').value,10) || 1024);
+      const minFreq = Math.max(0, parseFloat(document.getElementById('minFreq').value) || 0);
+      const maxFreq = Math.max(minFreq+1, parseFloat(document.getElementById('maxFreq').value) || 4500);
+      const dynRange = parseFloat(document.getElementById('dynRange').value) || 40;
+      const phaseMethod = document.getElementById('phaseMethod').value;
+      const iterations = Math.max(1, parseInt(document.getElementById('iterations').value,10) || 12);
+      const applyFloor = document.getElementById('applyFloor')?.checked ?? true;
+      const lowFloorDb = parseFloat(document.getElementById('lowFloorDb')?.value) || 60;
+      const applySmoothTime = document.getElementById('applySmoothTime')?.checked ?? false;
+      const applyRolloff = document.getElementById('applyRolloff')?.checked ?? true;
+
+      // Function to process the canvas content
+      const processCanvasContent = async () => {
+        // Canvas already has the image (either from file load or paste), no need to redraw
+        ctx.imageSmoothingEnabled = false;
+
+        let cropWidth = Math.max(1, canvas.width - marginLeft);
+        let rows = cropHeight;
+        const marginBottom = 0;
+        const y0 = Math.max(0, canvas.height - rows - marginBottom);
+
+        // Duration and hop calculation
+        let durationSec = 1.0;
+        {
+          const _d = document.getElementById('assumedDurationSec');
+          if (_d && _d.value) {
+            const v = Number(_d.value);
+            if (Number.isFinite(v) && v > 0) durationSec = v;
+          }
+        }
+        
+        // Calculate hop to achieve exact target duration
+        // duration = (cols - 1) * hop / sampleRate + fftSize / sampleRate
+        // Solving for hop: hop = (duration * sampleRate - fftSize) / (cols - 1)
+        let targetSamples = Math.round(durationSec * sampleRate);
+        let hop = Math.max(1, Math.round((targetSamples - fftSize) / Math.max(1, cropWidth - 1)));
+        let effPxPerSec = sampleRate / hop;
+        const actualDuration = ((cropWidth - 1) * hop + fftSize) / sampleRate;
+
+        log(`Target duration: ${durationSec.toFixed(3)}s, Actual: ${actualDuration.toFixed(3)}s`);
+        log(`${effPxPerSec.toFixed(2)} px/sec (hop ${hop})`);
+        log(`fft ${fftSize}, min ${minFreq} Hz, max ${maxFreq} Hz, rows ${rows}`);
+        await yieldUI();
+
+        const imgData = ctx.getImageData(marginLeft, y0, cropWidth, rows);
+        const data = imgData.data;
+
+        // Check for metadata
+        let hasMeta = false;
+        try{
+          hasMeta = !!(window.__lastMeta && (window.__lastMeta.fftSize || window.__lastMeta.hop || window.__lastMeta.pxPerSec || window.__lastMeta.px_per_sec));
+        }catch(_e){ hasMeta = false; }
+
+        let srcW = cropWidth, srcH = rows;
+        let magsGrid = null;
+
+        // In hand-drawn mode, use the original image resolution directly
+        // Don't resample to FFT bins since we're doing direct additive synthesis
+        if(!hasMeta || window.__lastMeta?.optimized === 'false'){
+          const sr = sampleRate;
+          
+          // Calculate hop to match target duration exactly
+          const durBox = document.getElementById('assumedDurationSec');
+          const desiredSec = durBox && Number(durBox.value) > 0 ? Number(durBox.value) : 1.0;
+          const targetSamples = Math.round(desiredSec * sr);
+          const hop = Math.max(1, Math.round((targetSamples - fftSize) / Math.max(1, srcW - 1)));
+          
+          const posBins = Math.floor(fftSize/2);
+          let kMin = Math.max(0, Math.round(fftSize * (minFreq / sr)));
+          let kMax = Math.min(posBins - 1, Math.round(fftSize * (maxFreq / sr)));
+          if(kMax <= kMin) kMax = Math.min(posBins - 1, kMin + srcH - 1);
+          const usedBins = Math.max(1, kMax - kMin + 1);
+
+          const targetCols = 1 + Math.max(0, Math.round((targetSamples - fftSize) / Math.max(1, hop)));
+
+          const colormapName = document.getElementById('colormapSelect')?.value || 'grayscale';
+          magsGrid = _resample2DGray(data, srcW, srcH, targetCols, usedBins, colormapName);
+
+          cropWidth = targetCols;
+          rows = usedBins;
+          srcW = cropWidth; srcH = rows;
+          
+          const actualDuration = ((targetCols - 1) * hop + fftSize) / sr;
+          log(`Conformed external image to ${targetCols}x${usedBins} based on sr=${sr}, N=${fftSize}, hop=${hop}, target=${desiredSec.toFixed(3)}s, actual=${actualDuration.toFixed(3)}s`);
+        }
+
+        const cols = cropWidth;
+
+        const mags = new Float32Array(rows*cols);
+        // Flip logic: unchecked (default) means white=low/black=high (standard convention)
+        // checked means black=low/white=high (legacy behavior)
+        const invertFlag = !!(document.getElementById('invertColorsIn')?.checked);
+        
+        if(magsGrid){
+          // magsGrid already holds normalized values 0..1
+          for(let y=0;y<rows;y++){
+            const rowOff = y*cols;
+            for(let x=0;x<cols;x++){
+              let t = magsGrid[y*cols + x];  // t = brightness-based position
+              if(invertFlag) t = 1 - t;      // invert purely swaps bright/dark
+        
+              const D = Number(document.getElementById('dynRange')?.value) || 80;
+              const mag = Math.pow(10, (-D * t) / 20); // correct loudness mapping
+        
+              mags[rowOff + x] = mag;
+            }
+          }
+        } else {
+          const colormapName = document.getElementById('colormapSelect')?.value || 'grayscale';
+          log(`Using colormap: ${colormapName}`);
+        
+          for(let y=0;y<rows;y++){
+            const rowOff = y*cols;
+            for(let x=0;x<cols;x++){
+              const idx = (y*cols + x)*4;
+              const r8 = data[idx];
+              const g8 = data[idx+1];
+              const b8 = data[idx+2];
+        
+              // 1) Convert RGB to normalized brightness t (0=loud, 1=quiet)
+              let t = rgbToColormapValue(r8, g8, b8, colormapName);
+        
+              // 2) Apply invert purely visually
+              if(invertFlag) t = 1 - t;
+        
+              // 3) Convert t -> linear magnitude using dynamic range
+              const D = Number(document.getElementById('dynRange')?.value) || 80;
+              const mag = Math.pow(10, (-D * t) / 20);
+        
+              mags[rowOff + x] = mag;
+            }
+            if(y%80===0){ log(`Row ${y}/${rows}`); await yieldUI(); }
+          }
+        }
+        log(`Matrix complete ${rows}x${cols}`);
+        log('Using sRGB->linear pixel decoding');
+        if(!document.getElementById('invertColorsIn')?.checked){ log('Color interpretation: white=low, black=high (standard)'); }
+        else { log('Color interpretation: black=low, white=high (inverted)'); }
+        if(anyBad(mags)) warnNaNs('magnitude matrix', 'Check dynRange');
+        
+        if(applySmoothTime){
+          log('Applied temporal smoothing (3-column avg)');
+          for(let y=0;y<rows;y++){
+            const rowOff=y*cols;
+            let prev=mags[rowOff];
+            for(let x=1;x<cols-1;x++){
+              const cur=mags[rowOff+x];
+              const nxt=mags[rowOff+x+1];
+              mags[rowOff+x]=(prev+cur+nxt)/3;
+              prev=cur;
+            }
+          }
+        }
+        
+        if(applyRolloff){
+          const rollBins=Math.floor(rows*0.05);
+          for(let k=0;k<rows;k++){
+            const f=(k>rows-rollBins)?0.5*(1-Math.cos(Math.PI*(rows-k)/rollBins)):1;
+            for(let c=0;c<cols;c++){ mags[k*cols+c]*=f; }
+          }
+          log('Applied 5% high-end roll-off');
+        }
+        
+        if(applyFloor){
+          const minAmp = Math.pow(10, (-lowFloorDb)/20);
+          let zeroed=0;
+          for(let i=0;i<mags.length;i++){ if(mags[i]<minAmp){ mags[i]=0; zeroed++; } }
+          log(`Applied low-level floor (-${lowFloorDb} dB), muted ${zeroed} of ${mags.length}`);
+        }
+
+        const posBins = Math.floor(fftSize/2);
+        let kMin = Math.max(0, Math.round(fftSize * (minFreq / sampleRate)));
+        let kMax = Math.min(posBins - 1, Math.round(fftSize * (maxFreq / sampleRate)));
+        if(kMax <= kMin) kMax = Math.min(posBins - 1, kMin + rows - 1);
+
+        // Frequency mapping: support linear, log, mel, and bark scales
+        const freqScaleValue = document.getElementById('freqScale')?.value || 'linear';
+        const useLog = (freqScaleValue === 'log');
+        const useMel = (freqScaleValue === 'mel');
+        const useBark = (freqScaleValue === 'bark');
+        
+        const rowToBin = new Int32Array(rows);
+        if(!useLog && !useMel && !useBark){
+          // Linear mapping
+          for(let y=0;y<rows;y++){
+            rowToBin[y] = kMin + (rows - 1 - y);
+            if(rowToBin[y] < 1) rowToBin[y] = 1;
+            if(rowToBin[y] >= posBins) rowToBin[y] = posBins - 1;
+          }
+        } else if(useLog) {
+          // Logarithmic mapping
+          const minHz = Math.max(1e-3, minFreq);
+          const maxHz = Math.max(minHz*1.001, maxFreq);
+          for(let y=0;y<rows;y++){
+            const t = (rows - 1 - y) / Math.max(1, rows - 1);
+            const f = minHz * Math.pow(maxHz/minHz, t);
+            let k = Math.round((f * fftSize) / sampleRate);
+            if(k < 1) k = 1;
+            if(k >= posBins) k = posBins - 1;
+            rowToBin[y] = k;
+          }
+          kMin = rowToBin.reduce((a,b)=>Math.min(a,b), posBins-1);
+          kMax = rowToBin.reduce((a,b)=>Math.max(a,b), 1);
+        } else if(useMel) {
+          // Mel scale mapping
+          const minHz = Math.max(1e-3, minFreq);
+          const maxHz = Math.max(minHz*1.001, maxFreq);
+          const minMel = hzToMel(minHz);
+          const maxMel = hzToMel(maxHz);
+          for(let y=0;y<rows;y++){
+            const t = (rows - 1 - y) / Math.max(1, rows - 1);
+            const mel = minMel + t * (maxMel - minMel);
+            const f = melToHz(mel);
+            let k = Math.round((f * fftSize) / sampleRate);
+            if(k < 1) k = 1;
+            if(k >= posBins) k = posBins - 1;
+            rowToBin[y] = k;
+          }
+          kMin = rowToBin.reduce((a,b)=>Math.min(a,b), posBins-1);
+          kMax = rowToBin.reduce((a,b)=>Math.max(a,b), 1);
+        } else if(useBark) {
+          // Bark scale mapping
+          const minHz = Math.max(1e-3, minFreq);
+          const maxHz = Math.max(minHz*1.001, maxFreq);
+          const minBark = hzToBark(minHz);
+          const maxBark = hzToBark(maxHz);
+          for(let y=0;y<rows;y++){
+            const t = (rows - 1 - y) / Math.max(1, rows - 1);
+            const bark = minBark + t * (maxBark - minBark);
+            const f = barkToHz(bark);
+            let k = Math.round((f * fftSize) / sampleRate);
+            if(k < 1) k = 1;
+            if(k >= posBins) k = posBins - 1;
+            rowToBin[y] = k;
+          }
+          kMin = rowToBin.reduce((a,b)=>Math.min(a,b), posBins-1);
+          kMax = rowToBin.reduce((a,b)=>Math.max(a,b), 1);
+        }
+
+        const usedSet = new Set();
+        for(let y=0;y<rows;y++) usedSet.add(rowToBin[y]);
+        const binList = Array.from(usedSet).sort((a,b)=>a-b);
+        const binToIdx = Object.create(null);
+        for(let i=0;i<binList.length;i++) binToIdx[binList[i]] = i;
+        const usedBins = binList.length;
+        const effMinHz = (kMin * sampleRate) / fftSize;
+        const effMaxHz = (kMax * sampleRate) / fftSize;
+        log(`${freqScaleValue.charAt(0).toUpperCase() + freqScaleValue.slice(1)} freq map ${effMinHz.toFixed(1)}..${effMaxHz.toFixed(1)} Hz across ${rows} rows -> ${usedBins} unique bins`);
+        log(`Bins k ${kMin}..${kMax} (used ${usedBins}), binHz ${(sampleRate/fftSize).toFixed(2)}`);
+
+        let magsWork = mags;
+        if(reverse){
+          magsWork = new Float32Array(rows*cols);
+          for(let y=0;y<rows;y++){
+            const rowOff = y*cols;
+            for(let x=0;x<cols;x++){
+              magsWork[rowOff + x] = mags[rowOff + (cols - 1 - x)];
+            }
+          }
+          log('Time reversal: columns flipped for GL/PGHI');
+        }
+        
+        if(phaseMethod === 'griffinlim'){
+          log(`Griffin-Lim x ${iterations}`);
+          if(iterations < 8) log('Tip: Griffin-Lim usually needs 12-32 iterations for clear speech.');
+          log(`GL using rows=${rows}, kMin=${kMin}, kMax=${kMax}, hop=${hop}, fft=${fftSize}`);
+          let glSignal = await griffinLimReconstruct(magsWork, rows, cols, sampleRate, fftSize, hop, kMin, kMax, rowToBin, iterations, log);
+          log(`Smoother window set to ${document.getElementById('postSmoothMs')?.value||10} ms`);
+          await finalizeAudio(glSignal, sampleRate);
+          return;
+        } else if(phaseMethod === 'pghi_like'){
+          log(`PGHI (approx) with ${iterations} refinements`);
+          let pghiSignal = await pghiLikeReconstruct(magsWork, rows, cols, sampleRate, fftSize, hop, kMin, kMax, rowToBin, iterations, log);
+          log(`Smoother window set to ${document.getElementById('postSmoothMs')?.value||10} ms`);
+          await finalizeAudio(pghiSignal, sampleRate);
+          return;
+        } else if(phaseMethod === 'pghi_true'){
+          log(`PGHI (true) reconstruction`);
+          let pghiTrueSignal = await truePghiReconstruct(magsWork, rows, cols, sampleRate, fftSize, hop, kMin, kMax, rowToBin, iterations, log);
+          log(`Smoother window set to ${document.getElementById('postSmoothMs')?.value||10} ms`);
+          await finalizeAudio(pghiTrueSignal, sampleRate);
+          return;
+        } else if(phaseMethod === 'running'){
+          log('Running-sine synthesis');
+          const outLen = hop*(cols - 1) + fftSize;
+          const signal = new Float32Array(outLen);
+          const w = (hop < fftSize) ? hannWindow(fftSize) : null;
+          const phases = new Float32Array(usedBins);
+          for(let b=0;b<usedBins;b++) phases[b]=0;
+          for(let c=0;c<cols;c++){
+            const src = reverse ? (cols - 1 - c) : c;
+            for(let y=0;y<rows;y++){
+              const k = rowToBin[y];
+              const bin = binToIdx[k];
+              const a = mags[y*cols + src] * preGain;
+              if(a<=0) continue;
+              const freq = (k * sampleRate) / fftSize;
+              const ph0 = phases[bin];
+              const start = c*hop;
+              for(let t=0;t<fftSize;t++){
+                const idx = start + t;
+                if(idx>=signal.length) break;
+                const ph = ph0 + 2*Math.PI*freq*(t/sampleRate);
+                const win = w ? w[t] : 1;
+                signal[idx] += a * Math.sin(ph) * win;
+              }
+              const sliceTime = hop / sampleRate;
+              phases[bin] = (ph0 + 2*Math.PI*freq*sliceTime) % (2*Math.PI);
+            }
+            if(c%50===0){ log(`Col ${c}/${cols}`); await yieldUI(); }
+          }
+          log(`Smoother window set to ${document.getElementById('postSmoothMs')?.value||10} ms`);
+          await finalizeAudio(signal, sampleRate);
+        }
+      };
+      
+      // If we have a file, load it. Otherwise, canvas already has pasted image
+      if(file){
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        img.onload = async ()=>{
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(img, 0, 0);
+          URL.revokeObjectURL(url);
+          await processCanvasContent();
+        };
+        img.onerror = ()=> {
+          URL.revokeObjectURL(url);
+          setStatus('Failed to load image');
+        };
+        img.src = url;
+      } else {
+        // Canvas already has the pasted image, process it directly
+        await processCanvasContent();
+      }
+    }
+
+    async function finalizeAudio(signal, sampleRate){
+      const pgEl = document.getElementById('postGainSlider');
+      const postGain = pgEl ? parseFloat(pgEl.value) : 1.0;
+      if(postGain !== 1){ for(let i=0;i<signal.length;i++){ signal[i] *= postGain; } }
+
+      for(let i=0;i<signal.length;i++){ if(!Number.isFinite(signal[i]) || Number.isNaN(signal[i])) signal[i]=0; }
+      let peak=0;
+      for(let i=0;i<signal.length;i++){ const a = Math.abs(signal[i]); if(a>peak) peak=a; }
+      if(peak>1) log(`Warning: peak ${peak.toFixed(3)} > 1.0, WAV will hard-clip. No normalization.`);
+
+      if(document.getElementById('postSmooth').checked){
+        const sr = sampleRate;
+        const msEl = document.getElementById('postSmoothMs');
+        const ms = msEl ? Math.max(1, parseFloat(msEl.value)||10) : 10;
+        const win = Math.max(1, Math.round(sr * (ms/1000)));
+        log(`Applied post-reconstruction smoother (${ms} ms, window=${win} samples, zero-phase boxcar)`);
+        if(win > 1){
+          const n = signal.length;
+          const tmp = new Float32Array(n);
+          let acc = 0;
+          for(let i=0;i<n;i++){
+            acc += signal[i];
+            if(i>=win) acc -= signal[i-win];
+            const denom = (i+1<win) ? (i+1) : win;
+            tmp[i] = acc / denom;
+          }
+          const out = new Float32Array(n);
+          acc = 0;
+          for(let i=n-1, j=0;i>=0;i--, j++){
+            acc += tmp[i];
+            if(j>=win) acc -= tmp[i+win];
+            const denom = (j+1<win) ? (j+1) : win;
+            out[i] = acc / denom;
+          }
+          signal.set(out);
+        }
+      }
+      
+      log('Encoding WAV');
+      await yieldUI();
+      const wav = encodeWAV(signal, sampleRate);
+      const blob = new Blob([wav], {type:'audio/wav'});
+      const url = URL.createObjectURL(blob);
+      const a = document.getElementById('audioPlayer');
+      a.src = url;
+      a.play().catch(()=>{});
+      const d = document.getElementById('downloadBtn');
+      d.dataset.url = url;
+      d.style.display = 'inline-block';
+      log('Audio ready. Use the player or Download.');
+    }
+
+    function encodeWAV(samples, sampleRate){
+      const numChannels=1, bps=2, blockAlign=numChannels*bps, byteRate=sampleRate*blockAlign;
+      const dataSize=samples.length*bps;
+      const buf=new ArrayBuffer(44+dataSize);
+      const v=new DataView(buf);
+      function ws(o,s){ for(let i=0;i<s.length;i++) v.setUint8(o+i, s.charCodeAt(i)); }
+      ws(0,"RIFF"); v.setUint32(4,36+dataSize,true);
+      ws(8,"WAVE"); ws(12,"fmt "); v.setUint32(16,16,true);
+      v.setUint16(20,1,true); v.setUint16(22,1,true);
+      v.setUint32(24,sampleRate,true); v.setUint32(28,byteRate,true);
+      v.setUint16(32,blockAlign,true); v.setUint16(34,16,true);
+      ws(36,"data"); v.setUint32(40,dataSize,true);
+      let off=44;
+      for(let i=0;i<samples.length;i++){
+        const s=Math.max(-1,Math.min(1,samples[i]));
+        v.setInt16(off, s*32767, true);
+        off+=2;
+      }
+      return buf;
+    }
+
+    function hannWindow(n){
+      const w=new Float32Array(n);
+      for(let i=0;i<n;i++) w[i]=0.5*(1-Math.cos(2*Math.PI*i/(n-1)));
+      return w;
+    }
+
+    /**
+    * Convert Hz to Mel scale
+    * @param {number} hz - Frequency in Hz
+    * @returns {number} Mel value
+    */
+    function hzToMel(hz) {
+     return 2595 * Math.log10(1 + hz / 700);
+    }
+    
+    /**
+    * Convert Mel to Hz
+    * @param {number} mel - Mel value
+    * @returns {number} Frequency in Hz
+    */
+    function melToHz(mel) {
+     return 700 * (Math.pow(10, mel / 2595) - 1);
+    }
+    
+    /**
+    * Convert Hz to Bark scale
+    * @param {number} hz - Frequency in Hz
+    * @returns {number} Bark value
+    */
+    function hzToBark(hz) {
+     return 13 * Math.atan(0.00076 * hz) + 3.5 * Math.atan(Math.pow(hz / 7500, 2));
+    }
+    
+    /**
+    * Convert Bark to Hz (approximation)
+    * @param {number} bark - Bark value
+    * @returns {number} Frequency in Hz
+    */
+    function barkToHz(bark) {
+     // Approximation formula
+     return 600 * Math.sinh(bark / 6);
+    }
+    
+    function fftRadix2(re, im, inverse=false){
+      const n=re.length;
+      for(let i=1,j=0;i<n;i++){
+        let bit=n>>1;
+        for(; j & bit; bit>>=1) j^=bit;
+        j^=bit;
+        if(i<j){ let tr=re[i]; re[i]=re[j]; re[j]=tr; tr=im[i]; im[i]=im[j]; im[j]=tr; }
+      }
+      for(let len=2; len<=n; len<<=1){
+        const ang=(inverse?2:-2)*Math.PI/len, wlenr=Math.cos(ang), wleni=Math.sin(ang);
+        for(let i=0;i<n;i+=len){
+          let wr=1, wi=0;
+          for(let k=0;k<(len>>1);k++){
+            const j=i+k, l=j+(len>>1);
+            const tr = wr*re[l] - wi*im[l];
+            const ti = wr*im[l] + wi*re[l];
+            re[l]=re[j]-tr; im[l]=im[j]-ti;
+            re[j]+=tr; im[j]+=ti;
+            const wtmp=wr; wr=wlenr*wr - wleni*wi; wi=wlenr*wi + wleni*wtmp;
+          }
+        }
+      }
+      if(inverse){ for(let i=0;i<n;i++){ re[i]/=n; im[i]/=n; } }
+    }
+
+    function stft(signal, fftSize, hop){
+      const w = hannWindow(fftSize);
+      const frames = Math.max(1, Math.floor((signal.length - fftSize)/hop) + 1);
+      const spec = new Array(frames);
+      for(let f=0; f<frames; f++){
+        const start = f*hop;
+        const re = new Float32Array(fftSize);
+        const im = new Float32Array(fftSize);
+        for(let i=0;i<fftSize;i++){ re[i] = (signal[start+i]||0)*w[i]; im[i]=0; }
+        fftRadix2(re, im, false);
+        spec[f] = {re, im};
+      }
+      return {spec, fftSize, hop};
+    }
+
+    function istft(specObj, hop, outLen){
+      const {spec, fftSize} = specObj;
+      const w = hannWindow(fftSize);
+      const out = new Float32Array(outLen);
+      const norm = new Float32Array(outLen);
+      for(let f=0; f<spec.length; f++){
+        const re=spec[f].re.slice(), im=spec[f].im.slice();
+        fftRadix2(re, im, true);
+        const start = f*hop;
+        for(let i=0;i<fftSize;i++){
+          const s = re[i]*w[i];
+          out[start+i]+=s;
+          norm[start+i]+=w[i]*w[i];
+        }
+      }
+      for(let i=0;i<out.length;i++){ const d = norm[i]; out[i] = (d>1e-12)? (out[i]/d) : 0; }
+      if(anyBad(out)) warnNaNs('iSTFT output', 'NaN or Inf after overlap add');
+      return out;
+    }
+
+    async function pghiLikeReconstruct(magRowsCols, rows, cols, fs, N, hop, kMin, kMax, rowToBin, iters, logFn){
+      const preGain = __getPreGain();
+      const posBins = Math.floor(N/2);
+      const frames = cols;
+      const target = new Array(frames);
+      for(let c=0;c<frames;c++){
+        const mag = new Float32Array(posBins);
+        for(let y=0;y<rows;y++){
+          const k = rowToBin[y];
+          if(k>=0 && k<posBins){
+            const a = magRowsCols[y*cols + c];
+            if(a>mag[k]) mag[k]=a;
+          }
+        }
+        const specScale = N / 2;
+        for(let k=0;k<posBins;k++){ mag[k] *= specScale; mag[k] *= preGain; }
+        target[c]=mag;
+      }
+
+      const spec = new Array(frames);
+      const phases = new Float32Array(posBins);
+      for(let k=0;k<posBins;k++) phases[k]=0;
+      const binHz = fs / N;
+      const dt = hop / fs;
+
+      for(let c=0;c<frames;c++){
+        const re = new Float32Array(N);
+        const im = new Float32Array(N);
+        for(let k=0;k<posBins;k++){
+          const a = target[c][k];
+          const freq = k * binHz;
+          const ph = phases[k];
+          re[k] = a * Math.cos(ph);
+          im[k] = a * Math.sin(ph);
+          let phNext = phases[k] + 2*Math.PI*freq*dt;
+          if(phNext > Math.PI) phNext -= 2*Math.PI;
+          if(phNext < -Math.PI) phNext += 2*Math.PI;
+          phases[k] = phNext;
+        }
+        im[0]=0; const ny = posBins; re[ny]=0; im[ny]=0;
+        for(let k=1;k<posBins;k++){ re[N-k]=re[k]; im[N-k] = -im[k]; }
+        spec[c] = {re, im};
+      }
+
+      const outLen = hop*(frames - 1) + N;
+      let signal = istft({spec, fftSize: N}, hop, outLen);
+      logFn && logFn("Applied PGHI phase unwrapping for continuity\nPGHI-like: coherent init done");
+
+      const refine = Math.max(0, iters|0);
+      for(let it=0; it<refine; it++){
+        if(anyBad(signal)) warnNaNs('PGHI-like refine '+(it+1), 'Signal contains invalid numbers');
+        const ana = stft(signal, N, hop);
+        for(let c=0;c<frames;c++){
+          const re=ana.spec[c].re, im=ana.spec[c].im;
+          for(let k=0;k<posBins;k++){
+            let ph = Math.atan2(im[k], re[k]);
+            const expected = (phases[k] + 2*Math.PI*(k*fs/N)*dt) % (2*Math.PI);
+            let diff = ph - expected;
+            if(diff > Math.PI) diff -= 2*Math.PI;
+            if(diff < -Math.PI) diff += 2*Math.PI;
+            ph = expected + diff;
+            phases[k] = ph;
+            const a = target[c][k];
+            re[k] = a*Math.cos(ph);
+            im[k] = a*Math.sin(ph);
+          }
+          for(let k=1;k<posBins;k++){ ana.spec[c].re[N-k]=ana.spec[c].re[k]; ana.spec[c].im[N-k]=-ana.spec[c].im[k]; }
+          ana.spec[c].im[0]=0; ana.spec[c].re[posBins]=0; ana.spec[c].im[posBins]=0;
+        }
+        signal = istft({spec: ana.spec, fftSize: N}, hop, outLen);
+        if(it%2===0){ logFn && logFn(`PGHI-like refine ${it+1}/${refine}`); await new Promise(r=>requestAnimationFrame(r)); }
+      }
+      return signal;
+    }
+
+    async function truePghiReconstruct(magsWork, rows, cols, fs, N, hop, kMin, kMax, rowToBin, iters, logFn){
+      const preGain = __getPreGain();
+      const posBins = Math.floor(N/2);
+      const frames = cols;
+
+      const target = new Array(frames);
+      for(let c=0;c<frames;c++){
+        const mag = new Float32Array(posBins);
+        for(let y=0;y<rows;y++){
+          const k = rowToBin[y];
+          if(k>=0 && k<posBins){
+            const a = magsWork[y*cols + c];
+            if(a>mag[k]) mag[k]=a;
+          }
+        }
+        const specScale = N / 2;
+        for(let k=0;k<posBins;k++){ mag[k] *= specScale; mag[k] *= preGain; }
+        target[c]=mag;
+      }
+
+      logFn("PGHI (true): computing phase gradients...");
+      await new Promise(r=>requestAnimationFrame(r));
+
+      const logMag = new Float32Array(rows*cols);
+      for(let i=0;i<magsWork.length;i++) logMag[i] = Math.log(magsWork[i] + 1e-9);
+
+      const dT = new Float32Array(rows*cols);
+      const dF = new Float32Array(rows*cols);
+      for(let y=0;y<rows;y++){
+        for(let x=1;x<cols-1;x++){
+          const idx = y*cols + x;
+          dT[idx] = (logMag[y*cols + x+1] - logMag[y*cols + x-1]) * 0.5;
+        }
+      }
+      for(let x=0;x<cols;x++){
+        for(let y=1;y<rows-1;y++){
+          const idx = y*cols + x;
+          dF[idx] = (logMag[(y+1)*cols + x] - logMag[(y-1)*cols + x]) * 0.5;
+        }
+      }
+
+      const dPhiT = new Float32Array(rows*cols);
+      const dPhiF = new Float32Array(rows*cols);
+      const twoPi = 2 * Math.PI;
+      const scaleT = twoPi * hop / N;
+      const scaleF = twoPi * N / hop;
+      for(let y = 0; y < rows; y++){
+        for(let x = 0; x < cols; x++){
+          const idx = y * cols + x;
+          dPhiT[idx] = scaleT * dF[idx];
+          dPhiF[idx] = scaleF * dT[idx];
+        }
+      }
+
+      logFn("Heap integration in progress...");
+      await new Promise(r=>requestAnimationFrame(r));
+
+      const phase = new Float32Array(rows*cols).fill(NaN);
+      const visited = new Uint8Array(rows*cols);
+      const heap = [];
+      const pushHeap = (idx, val)=>{ heap.push([val, idx]); };
+      for(let i=0;i<magsWork.length;i++) if(magsWork[i]>0) pushHeap(i, magsWork[i]);
+      heap.sort((a,b)=>b[0]-a[0]);
+      if(heap.length === 0){
+        logFn("PGHI: empty magnitude matrix.");
+        return new Float32Array();
+      }
+
+      const [seedVal, seedIdx] = heap[0];
+      phase[seedIdx] = 0;
+      visited[seedIdx] = 1;
+
+      const neighbors = [[1,0],[-1,0],[0,1],[0,-1]];
+      while(heap.length > 0){
+        const [magVal, idx] = heap.shift();
+        if(isNaN(phase[idx])) continue;
+        const y = Math.floor(idx / cols);
+        const x = idx - y * cols;
+
+        for(const [dx, dy] of neighbors){
+          const nx = x + dx, ny = y + dy;
+          if(nx < 0 || nx >= cols || ny < 0 || ny >= rows) continue;
+          const nidx = ny * cols + nx;
+          if(visited[nidx]) continue;
+
+          let phi = phase[idx];
+          if(dx !== 0) phi += dPhiT[idx] * dx;
+          if(dy !== 0) phi += dPhiF[idx] * dy;
+
+          phase[nidx] = phi;
+          visited[nidx] = 1;
+          heap.push([magsWork[nidx], nidx]);
+        }
+        heap.sort((a,b)=>b[0]-a[0]);
+      }
+      logFn(`Heap integration complete (${visited.reduce((a,b)=>a+b,0)} bins)`);
+
+      const spec = new Array(frames);
+      for(let c=0;c<frames;c++){
+        const re = new Float32Array(N);
+        const im = new Float32Array(N);
+        for(let y=0;y<rows;y++){
+          const k = rowToBin[y];
+          if(k<=0 || k>=posBins) continue;
+          const idx = y*cols + c;
+          const a = target[c][k];
+          const ph = phase[idx];
+          if(a > 0){
+            re[k] = a*Math.cos(ph);
+            im[k] = a*Math.sin(ph);
+          }
+        }
+        im[0]=0; re[posBins]=0; im[posBins]=0;
+        for(let k=1;k<posBins;k++){ re[N-k]=re[k]; im[N-k]=-im[k]; }
+        spec[c] = {re, im};
+      }
+
+      logFn("ISTFT synthesis...");
+      const outLen = hop*(frames - 1) + N;
+      const signal = istft({spec, fftSize:N}, hop, outLen);
+      logFn("ISTFT synthesis done.");
+      return signal;
+    }
+
+    async function griffinLimReconstruct(magRowsCols, rows, cols, fs, N, hop, kMin, kMax, rowToBin, iters, logFn){
+      const preGain = __getPreGain();
+      const posBins = Math.floor(N/2);
+      const frames = cols;
+      const target = new Array(frames);
+      logFn && logFn(`GL target: frames ${frames}, posBins ${posBins}, k ${kMin}..${kMax}`);
+      for(let c=0;c<frames;c++){
+        let maxA = 0;
+        const mag = new Float32Array(posBins);
+        for(let y=0;y<rows;y++){
+          const k = rowToBin[y];
+          if(k>=0 && k<posBins){
+            const a = magRowsCols[y*cols + c];
+            if(a>mag[k]) mag[k]=a;
+            if(a>maxA) maxA=a;
+          }
+        }
+        const floorA = maxA * 1e-4;
+        for(let k=0;k<posBins;k++){ if(mag[k] < floorA) mag[k] = 0; }
+        const specScale = N / 2;
+        for(let k=0;k<posBins;k++){ mag[k] *= specScale; mag[k] *= preGain; }
+        target[c]=mag;
+      }
+
+      const spec = new Array(frames);
+      for(let c=0;c<frames;c++){
+        let maxA = 0;
+        const re=new Float32Array(N), im=new Float32Array(N);
+        for(let k=0;k<posBins;k++){
+          const a = target[c][k];
+          const ph = 2*Math.PI*Math.random();
+          re[k]=a*Math.cos(ph); im[k]=a*Math.sin(ph);
+        }
+        im[0]=0; const ny=posBins; re[ny]=0; im[ny]=0;
+        for(let k=1;k<posBins;k++){ re[N-k]=re[k]; im[N-k]=-im[k]; }
+        spec[c]={re, im};
+      }
+
+      const outLen = hop*(frames - 1) + N;
+      let signal = istft({spec, fftSize: N}, hop, outLen);
+      logFn && logFn('Starting Griffin-Lim iterations with standard algorithm');
+      
+      for(let it=0; it<iters; it++){
+        if(anyBad(signal)) warnNaNs('Griffin-Lim iteration '+(it+1), 'Signal contains invalid numbers');
+        const ana = stft(signal, N, hop);
+        
+        // Standard Griffin-Lim: extract phase from STFT, replace magnitude, iterate
+        for(let c=0;c<frames;c++){
+          const re=ana.spec[c].re, im=ana.spec[c].im;
+          for(let k=0;k<posBins;k++){
+            // Extract current phase from the STFT analysis
+            const ph = Math.atan2(im[k], re[k]);
+            // Replace magnitude with target, keeping the estimated phase
+            const a = target[c][k];
+            re[k]=a*Math.cos(ph); 
+            im[k]=a*Math.sin(ph);
+          }
+          // Apply conjugate symmetry for real signal
+          for(let k=1;k<posBins;k++){ 
+            ana.spec[c].re[N-k]=ana.spec[c].re[k]; 
+            ana.spec[c].im[N-k]=-ana.spec[c].im[k]; 
+          }
+          ana.spec[c].im[0]=0; 
+          ana.spec[c].re[posBins]=0; 
+          ana.spec[c].im[posBins]=0;
+        }
+        
+        signal = istft({spec: ana.spec, fftSize: N}, hop, outLen);
+        let rms=0;
+        for(let i=0;i<signal.length;i++){ const s=signal[i]; rms+=s*s; }
+        rms=Math.sqrt(rms/Math.max(1,signal.length));
+        logFn && logFn(`GL RMS after iter ${it+1}: ${rms.toFixed(4)}`);
+        if(it%2===0){ logFn && logFn(`Griffin-Lim iter ${it+1}/${iters}`); await yieldUI(); }
+      }
+      return signal;
+    }
+
+    function readU32BE(u8, off){
+      return (u8[off]<<24) | (u8[off+1]<<16) | (u8[off+2]<<8) | (u8[off+3]);
+    }
+    
+    function parsePngText(u8){
+      const out = {};
+      const sig = [137,80,78,71,13,10,26,10];
+      for(let i=0;i<8;i++){ if(u8[i]!==sig[i]) return out; }
+      let p = 8;
+      if(p+8 <= u8.length){
+        const lenIHDR = (u8[p]<<24)|(u8[p+1]<<16)|(u8[p+2]<<8)|u8[p+3]; p+=4;
+        const typeIHDR = String.fromCharCode(u8[p],u8[p+1],u8[p+2],u8[p+3]); p+=4;
+        if(typeIHDR==='IHDR' && p+lenIHDR <= u8.length){
+          const w = (u8[p]<<24)|(u8[p+1]<<16)|(u8[p+2]<<8)|u8[p+3];
+          const h = (u8[p+4]<<24)|(u8[p+5]<<16)|(u8[p+6]<<8)|u8[p+7];
+          out.__width = (w>>>0);
+          out.__height = (h>>>0);
+        }
+        p += lenIHDR + 4;
+      }
+      while(p+8 <= u8.length){
+        const len = (u8[p]<<24)|(u8[p+1]<<16)|(u8[p+2]<<8)|u8[p+3]; p+=4;
+        const type = String.fromCharCode(u8[p],u8[p+1],u8[p+2],u8[p+3]); p+=4;
+        if(type === 'tEXt' && p+len <= u8.length){
+          const data = u8.subarray(p, p+len);
+          const nul = data.indexOf(0);
+          if(nul>0){
+            const k = new TextDecoder('ascii').decode(data.subarray(0,nul));
+            const v = new TextDecoder('utf-8').decode(data.subarray(nul+1));
+            out[k] = v;
+          }
+        }
+        p += len + 4;
+        if(type === 'IEND') break;
+      }
+      return out;
+    }
+    
+    function applySpectroMeta(metaMap){
+      try{ window.__lastMeta = Object.assign({}, metaMap); }catch(_e){}
+      
+      // Only apply metadata once - don't override user changes
+      if(window.__metadataAlreadyApplied) return;
+      window.__metadataAlreadyApplied = true;
+      
+      // Apply colormap from metadata if present
+      if(metaMap.colormap){
+        const cmap = metaMap.colormap.toLowerCase();
+        const radios = document.querySelectorAll('input[name="colormap"]');
+        radios.forEach(r=>{
+          if(r.value.toLowerCase() === cmap){
+            r.checked = true;
+          }
+        });
+      
+        // Update the hidden select mirror if used
+        const sel = document.getElementById('colormapSelect');
+        if(sel){
+          for(const opt of sel.options){
+            if(opt.value.toLowerCase() === cmap){
+              sel.value = opt.value;
+              break;
+            }
+          }
+        }
+      }
+
+      if(metaMap.invertColors !== undefined){
+        const inv = metaMap.invertColors.toLowerCase() === 'true';
+        const invChk = document.getElementById('invertColorsIn');
+        if(invChk){
+          invChk.checked = inv;
+        }
+      }
+
+      const byId = (id)=>document.getElementById(id);
+      const setVal = (id, v)=>{ const el=byId(id); if(el){ el.value = String(v); } };
+      const setCheck = (id, on)=>{ const el=byId(id); if(el){ el.checked = !!on; } };
+
+      if(metaMap.fftSize) setVal('fftSize', metaMap.fftSize);
+      if(metaMap.freqScale){ if(byId('freqScale')) setVal('freqScale', String(metaMap.freqScale)); }
+      else if(metaMap.scale){ if(byId('freqScale')) setVal('freqScale', String(metaMap.scale)); }
+      if(metaMap.minHz) setVal('minFreq', metaMap.minHz);
+      if(metaMap.maxHz) setVal('maxFreq', metaMap.maxHz);
+      if(metaMap.__height) setVal('cropHeight', metaMap.__height);
+      if(metaMap.invertColors!=null){ const v = String(metaMap.invertColors).toLowerCase(); const on = (v==='1'||v==='true'); const el=document.getElementById('invertColorsIn'); if(el) el.checked=on; }
+      if(metaMap.dynRange) setVal('dynRange', metaMap.dynRange);
+      if(metaMap.duration_sec || metaMap.durationSec || metaMap.duration) {
+        const dur = metaMap.duration_sec || metaMap.durationSec || metaMap.duration;
+        setVal('assumedDurationSec', dur);
+      }
+      if(metaMap.sampleRate && byId('sampleRate')) setVal('sampleRate', metaMap.sampleRate);
+    }
+
+    (function(){
+      const ip = document.getElementById('imageInput');
+      if(!ip) return;
+      ip.addEventListener('change', async (ev)=>{
+        // Reset the flag when a new image is loaded
+        window.__metadataAlreadyApplied = false;
+        
+        try{
+          const f = ev.target.files && ev.target.files[0];
+          if(!f) return;
+          const u8 = new Uint8Array(await f.arrayBuffer());
+          const meta = parsePngText(u8);
+          if(meta && Object.keys(meta).length){
+            console.log('[meta] PNG tEXt found', meta);
+            applySpectroMeta(meta);
+          } else {
+            console.log('[meta] no PNG tEXt found');
+          }
+        }catch(e){ console.warn('[meta] read failed', e); }
+      });
+    })();
+
+    (function(){
+      const ip = document.getElementById('imageInput');
+      if(!ip) return;
+      ip.addEventListener('change', async (ev)=>{
+        const file = ev.target.files && ev.target.files[0];
+        if(!file) return;
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = ()=>{
+          try{
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx.imageSmoothingEnabled = false;
+            ctx.clearRect(0,0,canvas.width,canvas.height);
+            ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, canvas.width, canvas.height);
+          }finally{
+            URL.revokeObjectURL(url);
+          }
+        };
+        img.src = url;
+      });
+    })();
+
+    (function(){
+      const el = document.getElementById('fftSize');
+      if(el){
+        el.addEventListener('change', enforceFFTInput);
+        el.addEventListener('blur', enforceFFTInput);
+      }
+    })();
+
+    (function(){
+      const __dlBtn = document.getElementById('downloadBtn');
+      if(__dlBtn && !__dlBtn.__bound){
+        __dlBtn.addEventListener('click', ()=>{
+          const url = __dlBtn.dataset && __dlBtn.dataset.url;
+          if(!url){ log('No audio available to download yet.'); return; }
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'resounder_inverted.wav';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+        });
+        __dlBtn.__bound = true;
+      }
+    })();
+
+    // Clipboard paste handler for images
+    (function(){
+      function loadImageFromBlob(blob) {
+        // Reset metadata flag when new image is pasted
+        window.__metadataAlreadyApplied = false;
+        window.__lastMeta = null;
+        
+        // Clear the file input so it doesn't override the pasted image
+        const fileInput = document.getElementById('imageInput');
+        if(fileInput) fileInput.value = '';
+
+        const url = URL.createObjectURL(blob);
+        const img = new Image();
+        img.onload = ()=>{
+          try{
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx.imageSmoothingEnabled = false;
+            ctx.clearRect(0,0,canvas.width,canvas.height);
+            ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, canvas.width, canvas.height);
+            log('Image pasted from clipboard');
+            
+            // Try to read metadata from pasted PNG
+            blob.arrayBuffer().then(ab => {
+              const u8 = new Uint8Array(ab);
+              const meta = parsePngText(u8);
+              if(meta && Object.keys(meta).length){
+                console.log('[meta] PNG tEXt found in pasted image', meta);
+                applySpectroMeta(meta);
+              }
+            }).catch(e => console.warn('[meta] read failed', e));
+          }finally{
+            URL.revokeObjectURL(url);
+          }
+        };
+        img.onerror = ()=>{
+          URL.revokeObjectURL(url);
+          log('Failed to load pasted image');
+        };
+        img.src = url;
+      }
+
+      // Handle paste event
+      document.addEventListener('paste', (ev)=>{
+        const items = ev.clipboardData?.items;
+        if(!items) return;
+        
+        for(let i=0; i<items.length; i++){
+          const item = items[i];
+          if(item.type.indexOf('image') !== -1){
+            ev.preventDefault();
+            const blob = item.getAsFile();
+            if(blob){
+              loadImageFromBlob(blob);
+            }
+            break;
+          }
+        }
+      });
+      
+      log('Paste functionality enabled - press Ctrl+V (or Cmd+V) to paste images');
+    })();
+    
+  </script>
+
+  <!-- License Footer -->
+  <div class="license-footer" id="licenseLink">
+    © 2025 NQR • Licensed under MIT • Click for details
+  </div>
+
+  <!-- License Modal -->
+  <div class="license-overlay" id="licenseOverlay"></div>
+  <div class="license-modal" id="licenseModal">
+    <span class="license-modal-close" id="licenseClose">&times;</span>
+    <h3>MIT License</h3>
+    <pre>Copyright (c) 2025 NQR
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.</pre>
+  </div>
+
+  <!-- License and Tips Modal Handler Script - Must be after the HTML elements -->
+  <script>
+    (function(){
+      const licenseLink = document.getElementById('licenseLink');
+      const licenseModal = document.getElementById('licenseModal');
+      const licenseOverlay = document.getElementById('licenseOverlay');
+      const licenseClose = document.getElementById('licenseClose');
+
+      if(!licenseLink || !licenseModal || !licenseOverlay || !licenseClose) return;
+
+      function showLicense() {
+        licenseModal.classList.add('show');
+        licenseOverlay.classList.add('show');
+      }
+
+      function hideLicense() {
+        licenseModal.classList.remove('show');
+        licenseOverlay.classList.remove('show');
+      }
+
+      licenseLink.addEventListener('click', showLicense);
+      licenseClose.addEventListener('click', hideLicense);
+      licenseOverlay.addEventListener('click', hideLicense);
+
+      const tipLink = document.getElementById('tipLink');
+      const tipModal = document.getElementById('tipModal');
+      const tipOverlay = document.getElementById('tipOverlay');
+      const tipClose = document.getElementById('tipClose');
+
+      if(!tipLink || !tipModal || !tipOverlay || !tipClose) return;
+
+      function showtip() {
+        tipModal.classList.add('show');
+        tipOverlay.classList.add('show');
+      }
+
+      function hidetip() {
+        tipModal.classList.remove('show');
+        tipOverlay.classList.remove('show');
+      }
+
+      tipLink.addEventListener('click', showtip);
+      tipClose.addEventListener('click', hidetip);
+      tipOverlay.addEventListener('click', hidetip);
+    })();
+  </script>
+</body>
+</html>
