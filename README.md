@@ -4,7 +4,7 @@
 
 **ReSounder** is a lightweight, browser-based spectrogram inverter that reconstructs audio from visual spectral data. It performs complete **phase reconstruction** using multiple algorithms, allowing you to transform spectrogram images back into intelligible, realistic sound — all locally in your browser.
 
-[**View Live Demo**](nqrlabs.com/ReSounder/)
+[**View Live Demo**](https://nqrlabs.com/ReSounder/)
 
 ## Overview
 
