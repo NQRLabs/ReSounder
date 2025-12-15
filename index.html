@@ -1039,7 +1039,7 @@ Fix: Ensure FFT Size & Assumed Duration (sec) is close to original. Unfortunatel
     // MAIN APPLICATION CODE
     // ============================================
     const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d', { willReadFrequently:true });
+    const ctx = canvas.getContext('2d', { willReadFrequently:true, colorSpace:'srgb' });
     ctx.imageSmoothingEnabled = false;
 
     const __SRGB_TO_LINEAR = new Float32Array(256);
@@ -2660,11 +2660,12 @@ async function processImage(){
         try {
           // Wait for image to be fully decoded before drawing (critical for JPEG reliability)
           await img.decode();
-          canvas.width = img.width;
-          canvas.height = img.height;
+          // Use naturalWidth/naturalHeight to get actual pixel dimensions (ignores device pixel ratio)
+          canvas.width = img.naturalWidth;
+          canvas.height = img.naturalHeight;
           ctx.imageSmoothingEnabled = false;
           ctx.clearRect(0, 0, canvas.width, canvas.height);
-          ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0);
 
           // Wait for canvas to commit pixels (critical for JPEG reliability)
           await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
@@ -2717,11 +2718,12 @@ async function processImage(){
         try {
           // Wait for image to be fully decoded before drawing (critical for JPEG reliability)
           await img.decode();
-          canvas.width = img.width;
-          canvas.height = img.height;
+          // Use naturalWidth/naturalHeight to get actual pixel dimensions (ignores device pixel ratio)
+          canvas.width = img.naturalWidth;
+          canvas.height = img.naturalHeight;
           ctx.imageSmoothingEnabled = false;
           ctx.clearRect(0, 0, canvas.width, canvas.height);
-          ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0);
 
           // Wait for canvas to commit pixels (critical for JPEG reliability)
           await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
