@@ -719,7 +719,7 @@
       <!-- File input at the top -->
       <h3>🖼️ Spectrogram Input</h3>
       <div style="margin: 10px 0;">
-        <input type="file" id="imageInput" accept="image/*">
+        <input type="file" id="imageInput" accept="image/png,image/jpeg,image/jpg,image/webp,image/*">
         <span style="color: var(--dim); font-size: 13px; font-style: italic;">or Ctrl+V to paste</span>
       </div>
       <!-- Canvas preview moved above controls -->
@@ -2652,20 +2652,25 @@ async function processImage(){
       ip.addEventListener('change', async (ev)=>{
         const file = ev.target.files && ev.target.files[0];
         if(!file) return;
+
         const url = URL.createObjectURL(file);
         const img = new Image();
-        img.onload = ()=>{
-          try{
-            canvas.width = img.width;
-            canvas.height = img.height;
-            ctx.imageSmoothingEnabled = false;
-            ctx.clearRect(0,0,canvas.width,canvas.height);
-            ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, canvas.width, canvas.height);
-          }finally{
-            URL.revokeObjectURL(url);
-          }
-        };
         img.src = url;
+
+        try {
+          // Wait for image to be fully decoded before drawing (critical for JPEG reliability)
+          await img.decode();
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx.imageSmoothingEnabled = false;
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, canvas.width, canvas.height);
+
+          // Wait for canvas to commit pixels (critical for JPEG reliability)
+          await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        } finally {
+          URL.revokeObjectURL(url);
+        }
       });
     })();
 
@@ -2696,44 +2701,51 @@ async function processImage(){
 
     // Clipboard paste handler for images
     (function(){
-      function loadImageFromBlob(blob) {
+      async function loadImageFromBlob(blob) {
         // Reset metadata flag when new image is pasted
         window.__metadataAlreadyApplied = false;
         window.__lastMeta = null;
-        
+
         // Clear the file input so it doesn't override the pasted image
         const fileInput = document.getElementById('imageInput');
         if(fileInput) fileInput.value = '';
 
         const url = URL.createObjectURL(blob);
         const img = new Image();
-        img.onload = ()=>{
-          try{
-            canvas.width = img.width;
-            canvas.height = img.height;
-            ctx.imageSmoothingEnabled = false;
-            ctx.clearRect(0,0,canvas.width,canvas.height);
-            ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, canvas.width, canvas.height);
-            log('Image pasted from clipboard');
-            
-            // Try to read metadata from pasted PNG
-            blob.arrayBuffer().then(ab => {
-              const u8 = new Uint8Array(ab);
-              const meta = parsePngText(u8);
-              if(meta && Object.keys(meta).length){
-                console.log('[meta] PNG tEXt found in pasted image', meta);
-                applySpectroMeta(meta);
-              }
-            }).catch(e => console.warn('[meta] read failed', e));
-          }finally{
-            URL.revokeObjectURL(url);
-          }
-        };
-        img.onerror = ()=>{
-          URL.revokeObjectURL(url);
-          log('Failed to load pasted image');
-        };
         img.src = url;
+
+        try {
+          // Wait for image to be fully decoded before drawing (critical for JPEG reliability)
+          await img.decode();
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx.imageSmoothingEnabled = false;
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, canvas.width, canvas.height);
+
+          // Wait for canvas to commit pixels (critical for JPEG reliability)
+          await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+          log('Image pasted from clipboard');
+
+          // Try to read metadata from pasted PNG
+          try {
+            const ab = await blob.arrayBuffer();
+            const u8 = new Uint8Array(ab);
+            const meta = parsePngText(u8);
+            if(meta && Object.keys(meta).length){
+              console.log('[meta] PNG tEXt found in pasted image', meta);
+              applySpectroMeta(meta);
+            }
+          } catch(e) {
+            console.warn('[meta] read failed', e);
+          }
+        } catch(err) {
+          log('Failed to load pasted image');
+          console.error('Image decode error:', err);
+        } finally {
+          URL.revokeObjectURL(url);
+        }
       }
 
       // Handle paste event
