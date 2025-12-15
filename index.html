@@ -699,6 +699,8 @@
       }
     }
   </style>
+  <!-- ONNX Runtime Web for Neural Vocoder (MIT License) -->
+  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.1/dist/ort.min.js"></script>
 </head>
 <body>
   <img src="assets/images/logo.png" alt="ReSounder Logo" style="max-width: 200px; height: auto; margin: 20px 0 10px;">
@@ -905,9 +907,21 @@ Fix: Ensure FFT Size & Assumed Duration (sec) is close to original. Unfortunatel
             <option value="griffinlim" selected>Griffin-Lim</option>
             <option value="pghi_like">PGHI (approx)</option>
             <option value="pghi_true">PGHI (true)</option>
+            <option value="neural">Neural Vocoder (best quality)</option>
           </select>
         </label>
         <label>Griffin-Lim Iterations <input type="number" id="iterations" value="24" min="1" max="50" step="1"></label>
+      </div>
+      <div class="row" id="neuralVocoderOptions" style="display: none;">
+        <label style="flex: 1;">Vocoder Model URL <input type="text" id="vocoderModelUrl" placeholder="Enter ONNX model URL" style="width: 100%;"></label>
+        <label>Model Sample Rate <input type="number" id="vocoderSampleRate" value="22050" min="8000" max="48000" step="1" style="width: 100px;"></label>
+        <button id="loadVocoderBtn" style="white-space: nowrap;">Load Model</button>
+      </div>
+      <div class="row">
+        <label style="display: flex; flex-direction: row; align-items: center; gap: 8px;">
+          <input type="checkbox" id="interpolateFrames">Interpolate Frames (reduce wobble)
+        </label>
+        <label>Target Overlap % <input type="number" id="targetOverlap" value="75" min="50" max="87.5" step="12.5" style="width: 80px;"></label>
       </div>
       <div class="row">
         <label>Pre-Gain <input type="number" id="preGainSlider" min="0.01" max="10.0" step="0.01" value="0.05"></label>
@@ -972,6 +986,53 @@ Fix: Ensure FFT Size & Assumed Duration (sec) is close to original. Unfortunatel
           }
         });
       });
+    })();
+
+    // ============================================
+    // NEURAL VOCODER UI HANDLER
+    // ============================================
+    (function initNeuralVocoderUI() {
+      const phaseMethodSelect = document.getElementById('phaseMethod');
+      const neuralOptions = document.getElementById('neuralVocoderOptions');
+      const loadVocoderBtn = document.getElementById('loadVocoderBtn');
+      const vocoderModelUrl = document.getElementById('vocoderModelUrl');
+
+      phaseMethodSelect.addEventListener('change', () => {
+        if (phaseMethodSelect.value === 'neural') {
+          neuralOptions.style.display = 'flex';
+        } else {
+          neuralOptions.style.display = 'none';
+        }
+      });
+
+      // Load model button handler
+      if (loadVocoderBtn) {
+        loadVocoderBtn.addEventListener('click', async () => {
+          const url = vocoderModelUrl.value.trim();
+          if (!url) {
+            alert('Please enter a vocoder model URL. You can use a MelGAN or HiFi-GAN ONNX model.');
+            return;
+          }
+
+          const logEl = document.getElementById('log');
+          const log = (msg) => {
+            if (logEl) logEl.textContent = msg;
+          };
+
+          loadVocoderBtn.disabled = true;
+          loadVocoderBtn.textContent = 'Loading...';
+
+          const success = await loadVocoderModel(url, log);
+
+          if (success) {
+            loadVocoderBtn.textContent = 'Model Loaded ✓';
+            loadVocoderBtn.style.backgroundColor = 'green';
+          } else {
+            loadVocoderBtn.textContent = 'Load Failed';
+            loadVocoderBtn.disabled = false;
+          }
+        });
+      }
     })();
 
     // ============================================
@@ -1324,14 +1385,38 @@ async function processImage(){
             if (Number.isFinite(v) && v > 0) durationSec = v;
           }
         }
-        
-        // Calculate hop to achieve exact target duration
-        // duration = (cols - 1) * hop / sampleRate + fftSize / sampleRate
-        // Solving for hop: hop = (duration * sampleRate - fftSize) / (cols - 1)
-        let targetSamples = Math.round(durationSec * sampleRate);
-        let hop = Math.max(1, Math.round((targetSamples - fftSize) / Math.max(1, cropWidth - 1)));
-        let effPxPerSec = sampleRate / hop;
-        const actualDuration = ((cropWidth - 1) * hop + fftSize) / sampleRate;
+
+        // Calculate hop - prioritize metadata over duration
+        let hop;
+        let effPxPerSec;
+        let actualDuration;
+
+        // First, check if metadata has px_per_sec (most reliable from SpectroGhost)
+        // Note: SpectroGhost exports hop=fftSize/2 which is often incorrect, so prioritize pxPerSec
+        if (window.__lastMeta?.px_per_sec || window.__lastMeta?.pxPerSec) {
+          const pxPerSec = Number(window.__lastMeta.px_per_sec || window.__lastMeta.pxPerSec);
+          if (Number.isFinite(pxPerSec) && pxPerSec > 0) {
+            hop = Math.max(1, Math.round(sampleRate / pxPerSec));
+            effPxPerSec = sampleRate / hop;
+            actualDuration = ((cropWidth - 1) * hop + fftSize) / sampleRate;
+            log(`Using px_per_sec from metadata: ${pxPerSec.toFixed(2)} → hop ${hop}`);
+          }
+        } else if (window.__lastMeta?.hop && Number.isFinite(Number(window.__lastMeta.hop))) {
+          hop = Math.max(1, Math.round(Number(window.__lastMeta.hop)));
+          effPxPerSec = sampleRate / hop;
+          actualDuration = ((cropWidth - 1) * hop + fftSize) / sampleRate;
+          log(`Using hop from metadata: ${hop}`);
+        }
+
+        // Fallback to duration-based calculation if no metadata
+        if (!hop) {
+          // duration = (cols - 1) * hop / sampleRate + fftSize / sampleRate
+          // Solving for hop: hop = (duration * sampleRate - fftSize) / (cols - 1)
+          let targetSamples = Math.round(durationSec * sampleRate);
+          hop = Math.max(1, Math.round((targetSamples - fftSize) / Math.max(1, cropWidth - 1)));
+          effPxPerSec = sampleRate / hop;
+          actualDuration = ((cropWidth - 1) * hop + fftSize) / sampleRate;
+        }
 
         log(`Target duration: ${durationSec.toFixed(3)}s, Actual: ${actualDuration.toFixed(3)}s`);
         log(`${effPxPerSec.toFixed(2)} px/sec (hop ${hop})`);
@@ -1555,44 +1640,94 @@ async function processImage(){
           }
           log('Time reversal: columns flipped for GL/PGHI');
         }
-        
+
+        // Frame interpolation to increase overlap (reduce wobble)
+        const shouldInterpolate = document.getElementById('interpolateFrames')?.checked;
+        let workCols = cols;
+        let workHop = hop;
+
+        if (shouldInterpolate) {
+          const currentOverlap = ((fftSize - hop) / fftSize) * 100;
+          const targetOverlapPct = Number(document.getElementById('targetOverlap')?.value) || 75;
+
+          if (targetOverlapPct > currentOverlap + 1) {
+            // Calculate new hop for target overlap
+            const newHop = Math.round(fftSize * (1 - targetOverlapPct / 100));
+            const interpFactor = hop / newHop;
+            const newCols = Math.round(cols * interpFactor);
+
+            log(`Interpolating frames: ${cols} → ${newCols} (overlap ${currentOverlap.toFixed(1)}% → ${targetOverlapPct}%, hop ${hop} → ${newHop})`);
+
+            // Interpolate magnitude spectrogram
+            const interpMags = new Float32Array(rows * newCols);
+            for (let y = 0; y < rows; y++) {
+              for (let x = 0; x < newCols; x++) {
+                const srcX = (x / newCols) * cols;
+                const x0 = Math.floor(srcX);
+                const x1 = Math.min(x0 + 1, cols - 1);
+                const frac = srcX - x0;
+
+                const v0 = magsWork[y * cols + x0];
+                const v1 = magsWork[y * cols + x1];
+                interpMags[y * newCols + x] = v0 * (1 - frac) + v1 * frac;
+              }
+            }
+
+            magsWork = interpMags;
+            workCols = newCols;
+            workHop = newHop;
+          } else {
+            log(`Skipping interpolation: current overlap ${currentOverlap.toFixed(1)}% >= target ${targetOverlapPct}%`);
+          }
+        }
+
         if(phaseMethod === 'griffinlim'){
           log(`Griffin-Lim x ${iterations}`);
           if(iterations < 8) log('Tip: Griffin-Lim usually needs 12-32 iterations for clear speech.');
-          log(`GL using rows=${rows}, kMin=${kMin}, kMax=${kMax}, hop=${hop}, fft=${fftSize}`);
-          let glSignal = await griffinLimReconstruct(magsWork, rows, cols, sampleRate, fftSize, hop, kMin, kMax, rowToBin, iterations, log);
+          log(`GL using rows=${rows}, kMin=${kMin}, kMax=${kMax}, hop=${workHop}, fft=${fftSize}`);
+          let glSignal = await griffinLimReconstruct(magsWork, rows, workCols, sampleRate, fftSize, workHop, kMin, kMax, rowToBin, iterations, log);
           log(`Smoother window set to ${document.getElementById('postSmoothMs')?.value||10} ms`);
           await finalizeAudio(glSignal, sampleRate);
           return;
         } else if(phaseMethod === 'pghi_like'){
           log(`PGHI (approx) with ${iterations} refinements`);
-          let pghiSignal = await pghiLikeReconstruct(magsWork, rows, cols, sampleRate, fftSize, hop, kMin, kMax, rowToBin, iterations, log);
+          let pghiSignal = await pghiLikeReconstruct(magsWork, rows, workCols, sampleRate, fftSize, workHop, kMin, kMax, rowToBin, iterations, log);
           log(`Smoother window set to ${document.getElementById('postSmoothMs')?.value||10} ms`);
           await finalizeAudio(pghiSignal, sampleRate);
           return;
         } else if(phaseMethod === 'pghi_true'){
           log(`PGHI (true) reconstruction`);
-          let pghiTrueSignal = await truePghiReconstruct(magsWork, rows, cols, sampleRate, fftSize, hop, kMin, kMax, rowToBin, iterations, log);
+          let pghiTrueSignal = await truePghiReconstruct(magsWork, rows, workCols, sampleRate, fftSize, workHop, kMin, kMax, rowToBin, iterations, log);
           log(`Smoother window set to ${document.getElementById('postSmoothMs')?.value||10} ms`);
           await finalizeAudio(pghiTrueSignal, sampleRate);
           return;
+        } else if(phaseMethod === 'neural'){
+          log('Neural Vocoder reconstruction');
+          try {
+            let neuralSignal = await neuralVocoderReconstruct(magsWork, rows, workCols, sampleRate, fftSize, workHop, kMin, kMax, rowToBin, log);
+            await finalizeAudio(neuralSignal, sampleRate);
+          } catch (err) {
+            log(`Neural vocoder error: ${err.message}`);
+            log('Please load a vocoder model first using the "Load Model" button.');
+          }
+          return;
         } else if(phaseMethod === 'running'){
           log('Running-sine synthesis');
-          const outLen = hop*(cols - 1) + fftSize;
+          const outLen = workHop*(workCols - 1) + fftSize;
           const signal = new Float32Array(outLen);
-          const w = (hop < fftSize) ? hannWindow(fftSize) : null;
+          const w = (workHop < fftSize) ? hannWindow(fftSize) : null;
           const phases = new Float32Array(usedBins);
           for(let b=0;b<usedBins;b++) phases[b]=0;
-          for(let c=0;c<cols;c++){
-            const src = reverse ? (cols - 1 - c) : c;
+          for(let c=0;c<workCols;c++){
+            const src = reverse ? (workCols - 1 - c) : c;
             for(let y=0;y<rows;y++){
               const k = rowToBin[y];
               const bin = binToIdx[k];
-              const a = mags[y*cols + src] * preGain;
+              const a = magsWork[y*workCols + src] * preGain;
               if(a<=0) continue;
               const freq = (k * sampleRate) / fftSize;
               const ph0 = phases[bin];
-              const start = c*hop;
+              const start = c*workHop;
               for(let t=0;t<fftSize;t++){
                 const idx = start + t;
                 if(idx>=signal.length) break;
@@ -1600,10 +1735,10 @@ async function processImage(){
                 const win = w ? w[t] : 1;
                 signal[idx] += a * Math.sin(ph) * win;
               }
-              const sliceTime = hop / sampleRate;
+              const sliceTime = workHop / sampleRate;
               phases[bin] = (ph0 + 2*Math.PI*freq*sliceTime) % (2*Math.PI);
             }
-            if(c%50===0){ log(`Col ${c}/${cols}`); await yieldUI(); }
+            if(c%50===0){ log(`Col ${c}/${workCols}`); await yieldUI(); }
           }
           log(`Smoother window set to ${document.getElementById('postSmoothMs')?.value||10} ms`);
           await finalizeAudio(signal, sampleRate);
@@ -1799,7 +1934,7 @@ async function processImage(){
         fftRadix2(re, im, true);
         const start = f*hop;
         for(let i=0;i<fftSize;i++){
-          const s = re[i]*w[i];
+          const s = re[i];
           out[start+i]+=s;
           norm[start+i]+=w[i]*w[i];
         }
@@ -2005,6 +2140,316 @@ async function processImage(){
       const outLen = hop*(frames - 1) + N;
       const signal = istft({spec, fftSize:N}, hop, outLen);
       logFn("ISTFT synthesis done.");
+      return signal;
+    }
+
+    // ============================================
+    // NEURAL VOCODER FUNCTIONS
+    // ============================================
+    //
+    // Neural vocoders provide much better audio quality than Griffin-Lim.
+    // This implementation uses ONNX Runtime Web to run pre-trained models.
+    //
+    // HOW TO USE:
+    // 1. Get an ONNX vocoder model (MelGAN, HiFi-GAN, or similar)
+    // 2. Host it somewhere accessible (GitHub, CDN, local server)
+    // 3. Select "Neural Vocoder" from the Phase Reconstruction method
+    // 4. Enter the model URL and click "Load Model"
+    // 5. Run the reconstruction
+    //
+    // WHERE TO GET MODELS:
+    // - HuggingFace Model Hub (many MIT/Apache2 licensed models)
+    // - ONNX Model Zoo: https://github.com/onnx/models
+    // - Convert PyTorch models to ONNX yourself
+    //
+    // EXAMPLE MODELS (check licenses before use):
+    // - LJSpeech MelGAN: ~10MB, good quality
+    // - Universal MelGAN: works with various speakers
+    // - HiFi-GAN V1: excellent quality, larger size
+    //
+    // LICENSE COMPATIBILITY:
+    // This code is MIT licensed. Ensure any model you use has a compatible
+    // license (MIT, Apache 2.0, BSD, etc.). Many models on HuggingFace are
+    // MIT or Apache 2.0 licensed.
+    //
+    // ============================================
+
+    let __vocoderSession = null;
+    let __vocoderModelLoaded = false;
+
+    /**
+     * Load ONNX vocoder model
+     */
+    async function loadVocoderModel(modelUrl, logFn) {
+      try {
+        logFn && logFn(`Loading vocoder model from: ${modelUrl}`);
+        __vocoderSession = await ort.InferenceSession.create(modelUrl);
+        __vocoderModelLoaded = true;
+        logFn && logFn(`Vocoder model loaded successfully`);
+        return true;
+      } catch (err) {
+        logFn && logFn(`Error loading vocoder: ${err.message}`);
+        __vocoderModelLoaded = false;
+        return false;
+      }
+    }
+
+    /**
+     * Convert linear spectrogram to mel-spectrogram
+     * @param {Float32Array} linearSpec - Linear magnitude spectrogram [frames, bins]
+     * @param {number} frames - Number of time frames
+     * @param {number} linearBins - Number of linear frequency bins
+     * @param {number} sampleRate - Sample rate in Hz
+     * @param {number} nMels - Number of mel bins (default 80)
+     * @param {number} fMin - Minimum frequency in Hz
+     * @param {number} fMax - Maximum frequency in Hz
+     * @returns {Float32Array} Mel-spectrogram [frames, nMels]
+     */
+    function linearToMelSpectrogram(linearSpec, frames, linearBins, sampleRate, nMels = 80, fMin = 0, fMax = null) {
+      if (!fMax) fMax = sampleRate / 2;
+
+      // Create mel filterbank
+      const melMin = hzToMel(fMin);
+      const melMax = hzToMel(fMax);
+      const melPoints = new Float32Array(nMels + 2);
+      for (let i = 0; i < nMels + 2; i++) {
+        melPoints[i] = melToHz(melMin + (i / (nMels + 1)) * (melMax - melMin));
+      }
+
+      // Convert mel points to FFT bin numbers
+      const binPoints = new Float32Array(nMels + 2);
+      for (let i = 0; i < nMels + 2; i++) {
+        binPoints[i] = Math.floor((linearBins + 1) * melPoints[i] / (sampleRate / 2));
+      }
+
+      // Create mel filterbank matrix
+      const melFilters = [];
+      for (let m = 0; m < nMels; m++) {
+        const filter = new Float32Array(linearBins);
+        const leftBin = binPoints[m];
+        const centerBin = binPoints[m + 1];
+        const rightBin = binPoints[m + 2];
+
+        // Triangular filter
+        for (let k = 0; k < linearBins; k++) {
+          if (k >= leftBin && k <= centerBin && centerBin > leftBin) {
+            filter[k] = (k - leftBin) / (centerBin - leftBin);
+          } else if (k > centerBin && k <= rightBin && rightBin > centerBin) {
+            filter[k] = (rightBin - k) / (rightBin - centerBin);
+          }
+        }
+        melFilters.push(filter);
+      }
+
+      // Apply mel filterbank to linear spectrogram
+      const melSpec = new Float32Array(frames * nMels);
+      for (let t = 0; t < frames; t++) {
+        for (let m = 0; m < nMels; m++) {
+          let sum = 0;
+          for (let k = 0; k < linearBins; k++) {
+            sum += linearSpec[t * linearBins + k] * melFilters[m][k];
+          }
+          melSpec[t * nMels + m] = sum;
+        }
+      }
+
+      return melSpec;
+    }
+
+    /**
+     * Simple linear resampling
+     */
+    function resampleAudio(input, inputRate, outputRate) {
+      if (inputRate === outputRate) return input;
+      const ratio = outputRate / inputRate;
+      const outputLength = Math.floor(input.length * ratio);
+      const output = new Float32Array(outputLength);
+
+      for (let i = 0; i < outputLength; i++) {
+        const srcPos = i / ratio;
+        const srcIdx = Math.floor(srcPos);
+        const frac = srcPos - srcIdx;
+
+        if (srcIdx + 1 < input.length) {
+          output[i] = input[srcIdx] * (1 - frac) + input[srcIdx + 1] * frac;
+        } else {
+          output[i] = input[srcIdx];
+        }
+      }
+
+      return output;
+    }
+
+    /**
+     * Neural vocoder reconstruction
+     */
+    async function neuralVocoderReconstruct(magRowsCols, rows, cols, fs, N, hop, kMin, kMax, rowToBin, logFn) {
+      if (!__vocoderModelLoaded || !__vocoderSession) {
+        logFn && logFn('ERROR: Vocoder model not loaded. Please load a model first.');
+        throw new Error('Vocoder model not loaded');
+      }
+
+      const preGain = __getPreGain();
+      const posBins = Math.floor(N / 2);
+      const frames = cols;
+
+      // Get model sample rate from UI
+      const modelSampleRateEl = document.getElementById('vocoderSampleRate');
+      const modelSampleRate = modelSampleRateEl ? Number(modelSampleRateEl.value) : 22050;
+
+      logFn && logFn(`Neural vocoder: frames=${frames}, bins=${posBins}, input_sr=${fs}, model_sr=${modelSampleRate}`);
+
+      // Build linear magnitude spectrogram
+      const linearSpec = new Float32Array(frames * posBins);
+      for (let c = 0; c < frames; c++) {
+        for (let y = 0; y < rows; y++) {
+          const k = rowToBin[y];
+          if (k >= 0 && k < posBins) {
+            const a = magRowsCols[y * cols + c] * preGain;
+            linearSpec[c * posBins + k] = a;
+          }
+        }
+      }
+
+      // Convert to mel-spectrogram (80 mel bins is standard for vocoders)
+      // IMPORTANT: Limit to model's Nyquist frequency to avoid bandwidth mismatch
+      const modelNyquist = modelSampleRate / 2;
+      const effectiveMaxFreq = Math.min(fs / 2, modelNyquist);
+      logFn && logFn(`Converting to mel-spectrogram (0-${effectiveMaxFreq.toFixed(0)}Hz, clamped to model Nyquist)...`);
+      const nMels = 80;
+      let melSpec = linearToMelSpectrogram(linearSpec, frames, posBins, fs, nMels, 0, effectiveMaxFreq);
+
+      // Calculate expected hop size for the model (HiFi-GAN typically uses hop=256)
+      const modelHop = 256;
+      const inputFrameRate = fs / hop;
+      const modelFrameRate = modelSampleRate / modelHop;
+
+      // Resample mel-spectrogram temporally to match model's expected frame rate
+      let finalFrames = frames;
+      if (Math.abs(inputFrameRate - modelFrameRate) > 1.0) {
+        const frameRatio = modelFrameRate / inputFrameRate;
+        finalFrames = Math.max(1, Math.round(frames * frameRatio));
+        logFn && logFn(`Resampling mel frames: ${frames} → ${finalFrames} (${inputFrameRate.toFixed(1)}→${modelFrameRate.toFixed(1)} fps)`);
+
+        const resampledMel = new Float32Array(finalFrames * nMels);
+        for (let t = 0; t < finalFrames; t++) {
+          const srcT = (t / finalFrames) * frames;
+          const t0 = Math.floor(srcT);
+          const t1 = Math.min(t0 + 1, frames - 1);
+          const frac = srcT - t0;
+
+          for (let m = 0; m < nMels; m++) {
+            const v0 = melSpec[t0 * nMels + m];
+            const v1 = melSpec[t1 * nMels + m];
+            resampledMel[t * nMels + m] = v0 * (1 - frac) + v1 * frac;
+          }
+        }
+        melSpec = resampledMel;
+      }
+
+      // Convert to log scale and clip (simpler, more robust preprocessing)
+      // Most HiFi-GAN models work well with log-mel clipped to [-12, 4]
+      let minVal = Infinity, maxVal = -Infinity;
+      for (let i = 0; i < melSpec.length; i++) {
+        melSpec[i] = Math.log(Math.max(1e-10, melSpec[i]));
+        if (melSpec[i] < minVal) minVal = melSpec[i];
+        if (melSpec[i] > maxVal) maxVal = melSpec[i];
+      }
+
+      logFn && logFn(`Mel range before norm: [${minVal.toFixed(2)}, ${maxVal.toFixed(2)}]`);
+
+      // Simple dynamic range scaling: map [minVal, maxVal] to roughly [-8, 2]
+      // This is more robust than mean/std when you have lots of silence
+      const targetMin = -8.0;
+      const targetMax = 2.0;
+      const scale = (targetMax - targetMin) / Math.max(0.1, maxVal - minVal);
+
+      for (let i = 0; i < melSpec.length; i++) {
+        melSpec[i] = targetMin + (melSpec[i] - minVal) * scale;
+        // Additional clipping for safety
+        melSpec[i] = Math.max(-12, Math.min(4, melSpec[i]));
+      }
+
+      // Try to infer correct tensor shape from model inputs
+      logFn && logFn('Preparing input tensor...');
+      const inputName = __vocoderSession.inputNames[0];
+
+      // Prepare input tensor - try [1, nMels, finalFrames] first (HiFi-GAN format)
+      const inputTensor = new Float32Array(1 * nMels * finalFrames);
+      for (let t = 0; t < finalFrames; t++) {
+        for (let m = 0; m < nMels; m++) {
+          inputTensor[m * finalFrames + t] = melSpec[t * nMels + m];
+        }
+      }
+
+      // Run inference
+      const inputNames = __vocoderSession.inputNames;
+      logFn && logFn(`Running neural vocoder inference (inputs: ${inputNames.join(', ')})...`);
+      const feeds = {};
+      feeds[inputName] = new ort.Tensor('float32', inputTensor, [1, nMels, finalFrames]);
+
+      // Handle models with additional inputs (some vocoders need length/noise tensors)
+      if (inputNames.length > 1) {
+        logFn && logFn(`Model requires ${inputNames.length} inputs, adding defaults...`);
+        for (let i = 1; i < inputNames.length; i++) {
+          const extraName = inputNames[i];
+          try {
+            if (extraName.toLowerCase().includes('len') || extraName === 'lengths') {
+              feeds[extraName] = new ort.Tensor('int64', new BigInt64Array([BigInt(finalFrames)]), [1]);
+              logFn && logFn(`  Added '${extraName}': [${finalFrames}]`);
+            } else if (extraName.toLowerCase().includes('noise') || extraName === 'z') {
+              const noiseLen = finalFrames * 8;
+              const noise = new Float32Array(noiseLen).map(() => Math.random() * 2 - 1);
+              feeds[extraName] = new ort.Tensor('float32', noise, [1, 1, noiseLen]);
+              logFn && logFn(`  Added '${extraName}': noise`);
+            }
+          } catch (e) {
+            logFn && logFn(`  Warning: couldn't add '${extraName}': ${e.message}`);
+          }
+        }
+      }
+
+      let results;
+      try {
+        results = await __vocoderSession.run(feeds);
+      } catch (err) {
+        // If that failed, try alternate shape [1, finalFrames, nMels]
+        logFn && logFn(`First shape failed, trying alternate: ${err.message}`);
+        const altTensor = new Float32Array(1 * finalFrames * nMels);
+        for (let t = 0; t < finalFrames; t++) {
+          for (let m = 0; m < nMels; m++) {
+            altTensor[t * nMels + m] = melSpec[t * nMels + m];
+          }
+        }
+        feeds[inputName] = new ort.Tensor('float32', altTensor, [1, finalFrames, nMels]);
+
+        try {
+          results = await __vocoderSession.run(feeds);
+        } catch (err2) {
+          logFn && logFn(`ERROR: Model not compatible. Required inputs: ${inputNames.join(', ')}`);
+          throw err2;
+        }
+      }
+
+      const outputName = __vocoderSession.outputNames[0];
+      const output = results[outputName];
+
+      logFn && logFn(`Vocoder output shape: ${output.dims.join('x')}`);
+
+      // Extract audio samples
+      const audioData = output.data;
+      let signal = new Float32Array(audioData.length);
+      for (let i = 0; i < audioData.length; i++) {
+        signal[i] = audioData[i];
+      }
+
+      // Resample if needed
+      if (modelSampleRate !== fs) {
+        logFn && logFn(`Resampling from ${modelSampleRate}Hz to ${fs}Hz...`);
+        signal = resampleAudio(signal, modelSampleRate, fs);
+      }
+
+      logFn && logFn(`Generated ${signal.length} samples (${(signal.length / fs).toFixed(2)}s)`);
       return signal;
     }
 
