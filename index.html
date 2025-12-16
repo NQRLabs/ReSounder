@@ -91,15 +91,79 @@
     }
 
     /* ============================================
-       CANVAS
+       CANVAS CONTAINER & CANVAS
        ============================================ */
-    canvas {
+    .canvas-container {
       max-width: 95vw;
-      height: auto;
+      max-height: 60vh;
+      overflow: auto;
       margin: 10px 0;
-      background: #000;
       border: 1px solid var(--border);
       border-radius: 8px;
+      background: #000;
+      display: flex;
+      align-items: flex-end; /* Bottom-align to show low frequencies first */
+      position: relative;
+      scroll-behavior: smooth;
+      -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+    }
+
+    canvas {
+      display: block;
+      background: #000;
+      /* Scaling will be applied via inline style based on aspect ratio */
+      image-rendering: pixelated;
+      image-rendering: -moz-crisp-edges;
+      image-rendering: crisp-edges;
+      cursor: pointer; /* Indicate clickability for seeking */
+    }
+
+    /* Thumbnail preview near file input */
+    .thumbnail-preview {
+      max-width: 300px;
+      max-height: 150px;
+      margin: 10px auto; /* Center horizontally */
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: #000;
+      display: none; /* Hidden until image loads */
+    }
+
+    /* Playhead overlay */
+    .playhead {
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      top: 0;
+      width: 2px;
+      background: rgba(255, 50, 50, 0.9);
+      box-shadow: 0 0 8px rgba(255, 50, 50, 0.8), 0 0 2px rgba(255, 255, 255, 0.6);
+      pointer-events: none; /* Allow clicks to pass through to canvas */
+      z-index: 10;
+      display: none; /* Hidden until audio loads */
+      transition: left 0.05s linear; /* Smooth movement during playback */
+    }
+
+    .playhead.dragging {
+      transition: none; /* No transition during drag for immediate response */
+      box-shadow: 0 0 12px rgba(255, 50, 50, 1), 0 0 4px rgba(255, 255, 255, 0.8);
+    }
+
+    /* Time tooltip shown during drag */
+    .playhead-tooltip {
+      position: absolute;
+      background: rgba(0, 0, 0, 0.9);
+      color: #fff;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-family: monospace;
+      pointer-events: none;
+      z-index: 11;
+      display: none;
+      white-space: nowrap;
+      transform: translate(-50%, -100%);
+      margin-top: -8px;
     }
 
     /* ============================================
@@ -722,8 +786,8 @@
         <input type="file" id="imageInput" accept="image/png,image/jpeg,image/jpg,image/webp,image/*">
         <span style="color: var(--dim); font-size: 13px; font-style: italic;">or Ctrl+V to paste</span>
       </div>
-      <!-- Canvas preview moved above controls -->
-      <canvas id="canvas"></canvas>
+      <!-- Thumbnail preview for quick reference -->
+      <canvas id="thumbnail" class="thumbnail-preview"></canvas>
   
       <!-- Tips & Troubleshooting -->
       <div class="tip-footer" id="tipLink">
@@ -960,10 +1024,19 @@ Fix: Ensure FFT Size & Assumed Duration (sec) is close to original. Unfortunatel
         <button id="invertBtn" type="button">Invert Spectrogram</button>
         <button id="downloadBtn" type="button" style="display:none">Download Audio</button>
       </div>
-      <audio id="audioPlayer" controls></audio>
     </div>
 
     <div class="debug" id="log">Ready.</div>
+
+    <!-- Audio player positioned directly above playhead canvas for perfect correlation -->
+    <audio id="audioPlayer" controls style="margin: 10px 0;"></audio>
+
+    <!-- Main canvas with playhead - directly below audio controls -->
+    <div class="canvas-container" id="canvasContainer">
+      <canvas id="canvas"></canvas>
+      <div class="playhead" id="playhead"></div>
+      <div class="playhead-tooltip" id="playheadTooltip">0:00.000</div>
+    </div>
   </div>
 
   <script>
@@ -1039,6 +1112,9 @@ Fix: Ensure FFT Size & Assumed Duration (sec) is close to original. Unfortunatel
     // MAIN APPLICATION CODE
     // ============================================
     const canvas = document.getElementById('canvas');
+    const canvasContainer = document.getElementById('canvasContainer');
+    const thumbnail = document.getElementById('thumbnail');
+    const thumbnailCtx = thumbnail.getContext('2d', { colorSpace:'srgb' });
     const ctx = canvas.getContext('2d', { willReadFrequently:true, colorSpace:'srgb' });
     ctx.imageSmoothingEnabled = false;
 
@@ -1048,6 +1124,236 @@ Fix: Ensure FFT Size & Assumed Duration (sec) is close to original. Unfortunatel
     if (!actualColorSpace || actualColorSpace !== 'srgb') {
       console.warn('[COLOR SPACE] Mobile browser may not support colorSpace option - color interpretation may differ!');
     }
+
+    // Update thumbnail preview
+    function updateThumbnail() {
+      if (!canvas.width || !canvas.height) return;
+
+      // Calculate thumbnail size maintaining aspect ratio
+      const maxWidth = 300;
+      const maxHeight = 150;
+      const aspectRatio = canvas.width / canvas.height;
+
+      let thumbWidth, thumbHeight;
+      if (aspectRatio > maxWidth / maxHeight) {
+        // Width-constrained
+        thumbWidth = maxWidth;
+        thumbHeight = maxWidth / aspectRatio;
+      } else {
+        // Height-constrained
+        thumbHeight = maxHeight;
+        thumbWidth = maxHeight * aspectRatio;
+      }
+
+      thumbnail.width = thumbWidth;
+      thumbnail.height = thumbHeight;
+      thumbnailCtx.imageSmoothingEnabled = true;
+      thumbnailCtx.drawImage(canvas, 0, 0, thumbWidth, thumbHeight);
+      thumbnail.style.display = 'block';
+    }
+
+    // Smart canvas scaling: scale to fit if reasonable aspect ratio, otherwise use scrollbars
+    function scaleCanvasDisplay() {
+      if (!canvas.width || !canvas.height) return;
+
+      const containerWidth = canvasContainer.clientWidth;
+      const aspectRatio = canvas.width / canvas.height;
+
+      // If aspect ratio is reasonable (not too wide), scale to fit container width
+      // Otherwise, limit scaling to prevent tiny display and use scrollbars
+      const maxAspectRatio = 10; // If wider than 10:1, don't scale down fully
+      const minScale = 0.3; // Never scale below 30% of original size
+
+      let scale = 1;
+
+      if (aspectRatio <= maxAspectRatio) {
+        // Reasonable aspect ratio - scale to fit container width
+        scale = Math.min(1, containerWidth / canvas.width);
+      } else {
+        // Very wide image - use limited scaling and let scrollbars handle it
+        scale = Math.max(minScale, containerWidth / (canvas.width * 0.5));
+      }
+
+      // Apply CSS transform for visual scaling (doesn't affect pixel data)
+      canvas.style.width = `${canvas.width * scale}px`;
+      canvas.style.height = `${canvas.height * scale}px`;
+
+      console.log(`[CANVAS SCALE] Dimensions: ${canvas.width}x${canvas.height}, Aspect: ${aspectRatio.toFixed(2)}, Scale: ${(scale * 100).toFixed(0)}%`);
+    }
+
+    // Rescale on window resize
+    let resizeTimeout;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(scaleCanvasDisplay, 150);
+    });
+
+    // ============================================
+    // PLAYHEAD FUNCTIONALITY
+    // ============================================
+    const playhead = document.getElementById('playhead');
+    const playheadTooltip = document.getElementById('playheadTooltip');
+    let audioElement = null; // Will be set when audio is generated
+    let audioDuration = 0;
+    let pixelsPerSecond = 1; // Will be updated after reconstruction
+    let isDragging = false;
+    let autoScrollInterval = null;
+
+    // Format time as M:SS.mmm
+    function formatTime(seconds) {
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      const ms = Math.floor((seconds % 1) * 1000);
+      return `${mins}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`;
+    }
+
+    // Convert canvas pixel X position to audio time
+    function pixelToTime(px) {
+      return px / pixelsPerSecond;
+    }
+
+    // Convert audio time to canvas pixel X position
+    function timeToPixel(time) {
+      return time * pixelsPerSecond;
+    }
+
+    // Update playhead visual position
+    function updatePlayheadPosition(time) {
+      if (!audioElement || !audioDuration) return;
+
+      const px = timeToPixel(time);
+      const scale = parseFloat(canvas.style.width) / canvas.width || 1;
+      const visualPx = px * scale;
+
+      playhead.style.left = `${visualPx}px`;
+      playhead.style.display = 'block';
+    }
+
+    // Update playhead during audio playback
+    function onAudioTimeUpdate() {
+      if (!isDragging && audioElement) {
+        updatePlayheadPosition(audioElement.currentTime);
+      }
+    }
+
+    // Seek audio to specific time
+    function seekAudio(time) {
+      if (!audioElement) {
+        console.warn('[PLAYHEAD] Cannot seek: audioElement is null');
+        return;
+      }
+      if (!audioDuration) {
+        console.warn('[PLAYHEAD] Cannot seek: audioDuration is 0');
+        return;
+      }
+      const seekTime = Math.max(0, Math.min(time, audioDuration));
+      console.log(`[PLAYHEAD] Seeking to ${seekTime.toFixed(3)}s (duration: ${audioDuration.toFixed(3)}s)`);
+      audioElement.currentTime = seekTime;
+    }
+
+    // Get mouse/touch position relative to canvas (in canvas pixel coordinates)
+    function getCanvasPosition(clientX) {
+      const rect = canvas.getBoundingClientRect();
+      const scale = parseFloat(canvas.style.width) / canvas.width || 1;
+      const visualX = clientX - rect.left;
+      const canvasX = visualX / scale;
+      console.log(`[PLAYHEAD] Click at clientX=${clientX}, canvasX=${canvasX.toFixed(1)}, scale=${scale.toFixed(3)}`);
+      return canvasX;
+    }
+
+    // Auto-scroll container when dragging near edges
+    function startAutoScroll(direction) {
+      stopAutoScroll();
+      autoScrollInterval = setInterval(() => {
+        const scrollAmount = direction * 10;
+        canvasContainer.scrollLeft += scrollAmount;
+      }, 16);
+    }
+
+    function stopAutoScroll() {
+      if (autoScrollInterval) {
+        clearInterval(autoScrollInterval);
+        autoScrollInterval = null;
+      }
+    }
+
+    // Handle seeking (click or drag)
+    function handleSeek(clientX, showTooltip = false) {
+      const canvasX = getCanvasPosition(clientX);
+      const time = pixelToTime(canvasX);
+
+      updatePlayheadPosition(time);
+      seekAudio(time);
+
+      if (showTooltip) {
+        const rect = canvas.getBoundingClientRect();
+        playheadTooltip.textContent = formatTime(time);
+        playheadTooltip.style.left = `${clientX - rect.left}px`;
+        playheadTooltip.style.top = '10px';
+        playheadTooltip.style.display = 'block';
+      }
+
+      // Auto-scroll detection
+      const containerRect = canvasContainer.getBoundingClientRect();
+      const edgeThreshold = 50;
+      const relativeX = clientX - containerRect.left;
+
+      if (relativeX < edgeThreshold) {
+        startAutoScroll(-1); // Scroll left
+      } else if (relativeX > containerRect.width - edgeThreshold) {
+        startAutoScroll(1); // Scroll right
+      } else {
+        stopAutoScroll();
+      }
+    }
+
+    // Mouse/Touch event handlers
+    canvas.addEventListener('mousedown', (e) => {
+      if (!audioElement) return;
+      isDragging = true;
+      playhead.classList.add('dragging');
+      handleSeek(e.clientX, true);
+      e.preventDefault();
+    });
+
+    canvas.addEventListener('touchstart', (e) => {
+      if (!audioElement || e.touches.length !== 1) return;
+      isDragging = true;
+      playhead.classList.add('dragging');
+      handleSeek(e.touches[0].clientX, true);
+      e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (isDragging) {
+        handleSeek(e.clientX, true);
+      }
+    });
+
+    document.addEventListener('touchmove', (e) => {
+      if (isDragging && e.touches.length === 1) {
+        handleSeek(e.touches[0].clientX, true);
+        e.preventDefault();
+      }
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (isDragging) {
+        isDragging = false;
+        playhead.classList.remove('dragging');
+        playheadTooltip.style.display = 'none';
+        stopAutoScroll();
+      }
+    });
+
+    document.addEventListener('touchend', () => {
+      if (isDragging) {
+        isDragging = false;
+        playhead.classList.remove('dragging');
+        playheadTooltip.style.display = 'none';
+        stopAutoScroll();
+      }
+    });
 
     const __SRGB_TO_LINEAR = new Float32Array(256);
     (function buildSRGBLUT(){
@@ -1382,12 +1688,19 @@ async function processImage(){
         ctx.imageSmoothingEnabled = false;
 
         let cropWidth = Math.max(1, canvas.width - marginLeft);
-        let rows = cropHeight;
+
+        // Use full canvas height if no metadata, otherwise use cropHeight setting
+        const hasMetadata = !!(window.__lastMeta && Object.keys(window.__lastMeta).length > 0);
+        let rows = hasMetadata ? cropHeight : Math.min(cropHeight, canvas.height);
+        if (!hasMetadata && canvas.height > 0) {
+          rows = canvas.height; // JPEGs without metadata should use full height
+        }
+
         const marginBottom = 0;
         const y0 = Math.max(0, canvas.height - rows - marginBottom);
 
         // Debug logging for dimension issues
-        log(`DEBUG: canvas.width=${canvas.width}, canvas.height=${canvas.height}, cropWidth=${cropWidth}`);
+        log(`DEBUG: canvas.width=${canvas.width}, canvas.height=${canvas.height}, cropWidth=${cropWidth}, rows=${rows}, hasMetadata=${hasMetadata}`);
 
         // Duration and hop calculation
         let durationSec = 1.0;
@@ -1708,25 +2021,25 @@ async function processImage(){
           log(`GL using rows=${rows}, kMin=${kMin}, kMax=${kMax}, hop=${workHop}, fft=${fftSize}`);
           let glSignal = await griffinLimReconstruct(magsWork, rows, workCols, sampleRate, fftSize, workHop, kMin, kMax, rowToBin, iterations, log);
           log(`Smoother window set to ${document.getElementById('postSmoothMs')?.value||10} ms`);
-          await finalizeAudio(glSignal, sampleRate);
+          await finalizeAudio(glSignal, sampleRate, effPxPerSec);
           return;
         } else if(phaseMethod === 'pghi_like'){
           log(`PGHI (approx) with ${iterations} refinements`);
           let pghiSignal = await pghiLikeReconstruct(magsWork, rows, workCols, sampleRate, fftSize, workHop, kMin, kMax, rowToBin, iterations, log);
           log(`Smoother window set to ${document.getElementById('postSmoothMs')?.value||10} ms`);
-          await finalizeAudio(pghiSignal, sampleRate);
+          await finalizeAudio(pghiSignal, sampleRate, effPxPerSec);
           return;
         } else if(phaseMethod === 'pghi_true'){
           log(`PGHI (true) reconstruction`);
           let pghiTrueSignal = await truePghiReconstruct(magsWork, rows, workCols, sampleRate, fftSize, workHop, kMin, kMax, rowToBin, iterations, log);
           log(`Smoother window set to ${document.getElementById('postSmoothMs')?.value||10} ms`);
-          await finalizeAudio(pghiTrueSignal, sampleRate);
+          await finalizeAudio(pghiTrueSignal, sampleRate, effPxPerSec);
           return;
         } else if(phaseMethod === 'neural'){
           log('Neural Vocoder reconstruction');
           try {
             let neuralSignal = await neuralVocoderReconstruct(magsWork, rows, workCols, sampleRate, fftSize, workHop, kMin, kMax, rowToBin, log);
-            await finalizeAudio(neuralSignal, sampleRate);
+            await finalizeAudio(neuralSignal, sampleRate, effPxPerSec);
           } catch (err) {
             log(`Neural vocoder error: ${err.message}`);
             log('Please load a vocoder model first using the "Load Model" button.');
@@ -1762,7 +2075,7 @@ async function processImage(){
             if(c%50===0){ log(`Col ${c}/${workCols}`); await yieldUI(); }
           }
           log(`Smoother window set to ${document.getElementById('postSmoothMs')?.value||10} ms`);
-          await finalizeAudio(signal, sampleRate);
+          await finalizeAudio(signal, sampleRate, effPxPerSec);
         }
       };
       
@@ -1789,7 +2102,7 @@ async function processImage(){
       }
     }
 
-    async function finalizeAudio(signal, sampleRate){
+    async function finalizeAudio(signal, sampleRate, pxPerSec){
       const pgEl = document.getElementById('postGainSlider');
       const postGain = pgEl ? parseFloat(pgEl.value) : 1.0;
       if(postGain !== 1){ for(let i=0;i<signal.length;i++){ signal[i] *= postGain; } }
@@ -1839,6 +2152,26 @@ async function processImage(){
       d.dataset.url = url;
       d.style.display = 'inline-block';
       log('Audio ready. Use the player or Download.');
+
+      // Initialize playhead
+      audioElement = a;
+      audioDuration = signal.length / sampleRate;
+      pixelsPerSecond = pxPerSec; // Use the px/sec passed from reconstruction
+
+      console.log(`[PLAYHEAD] Initializing...`);
+      console.log(`[PLAYHEAD]   audioElement:`, audioElement);
+      console.log(`[PLAYHEAD]   duration: ${audioDuration.toFixed(2)}s`);
+      console.log(`[PLAYHEAD]   px/sec: ${pixelsPerSecond.toFixed(2)}`);
+      console.log(`[PLAYHEAD]   canvas.width: ${canvas.width}`);
+
+      // Attach playhead update listener
+      a.removeEventListener('timeupdate', onAudioTimeUpdate); // Remove old listener if any
+      a.addEventListener('timeupdate', onAudioTimeUpdate);
+
+      // Reset playhead to start
+      updatePlayheadPosition(0);
+
+      console.log(`[PLAYHEAD] Initialized successfully`);
     }
 
     function encodeWAV(samples, sampleRate){
@@ -2690,6 +3023,10 @@ async function processImage(){
 
           // Wait for canvas to commit pixels (critical for JPEG reliability)
           await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+          // Update thumbnail and scale canvas display
+          updateThumbnail();
+          scaleCanvasDisplay();
         } finally {
           URL.revokeObjectURL(url);
         }
@@ -2748,6 +3085,10 @@ async function processImage(){
 
           // Wait for canvas to commit pixels (critical for JPEG reliability)
           await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+          // Update thumbnail and scale canvas display
+          updateThumbnail();
+          scaleCanvasDisplay();
 
           log('Image pasted from clipboard');
 
