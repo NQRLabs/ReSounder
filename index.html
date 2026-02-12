@@ -869,6 +869,7 @@ Fix: Ensure FFT Size & Assumed Duration (sec) is close to original. Unfortunatel
       </div>
       <div class="row">
         <label id="freqScaleLabel" style="cursor:pointer" title="Double-click to reset">Frequency Scale <select id="freqScale"><option value="linear" selected>Linear</option><option value="log">Log</option><option value="mel">Mel</option><option value="bark">Bark</option></select></label>
+        <label id="melTypeLabel" title="Mel formula type - Slaney is used by librosa/NVIDIA">Mel Type <select id="melType"><option value="htk">HTK</option><option value="slaney" selected>Slaney (librosa)</option></select></label>
         <label id="minFreqLabel" style="cursor:pointer" title="Double-click to reset">Min Frequency (Hz) <input type="number" id="minFreq" value="0" step="1"></label>
         <label id="maxFreqLabel" style="cursor:pointer" title="Double-click to reset">Max Frequency (Hz) <input type="number" id="maxFreq" value="4500" step="1"></label>
       </div>
@@ -967,14 +968,16 @@ Fix: Ensure FFT Size & Assumed Duration (sec) is close to original. Unfortunatel
       <div class="row">
         <label>Method
           <select id="phaseMethod">
-            <option value="running">Running-sine (fast)</option>
-            <option value="griffinlim" selected>Griffin-Lim</option>
+            <option value="istft">iSTFT (coherent phase)</option>
+            <option value="running">Running-sine</option>
+            <option value="griffinlim" selected>Griffin-Lim (FGLA)</option>
             <option value="pghi_like">PGHI (approx)</option>
             <option value="pghi_true">PGHI (true)</option>
             <option value="neural">Neural Vocoder (best quality)</option>
           </select>
         </label>
-        <label>Griffin-Lim Iterations <input type="number" id="iterations" value="24" min="1" max="50" step="1"></label>
+        <label>Iterations <input type="number" id="iterations" value="24" min="1" max="50" step="1"></label>
+        <label title="100% = exact magnitude match, lower = smoother phase">Mag Strictness % <input type="number" id="magStrictness" value="100" min="50" max="100" step="5" style="width: 70px;"></label>
       </div>
       <div class="row" id="neuralVocoderOptions" style="display: none;">
         <label style="flex: 1;">Vocoder Model URL <input type="text" id="vocoderModelUrl" placeholder="Enter ONNX model URL" style="width: 100%;"></label>
@@ -983,9 +986,12 @@ Fix: Ensure FFT Size & Assumed Duration (sec) is close to original. Unfortunatel
       </div>
       <div class="row">
         <label style="display: flex; flex-direction: row; align-items: center; gap: 8px;">
-          <input type="checkbox" id="interpolateFrames">Interpolate Frames (reduce wobble)
+          <input type="checkbox" id="interpolateFrames">Interpolate Frames
         </label>
         <label>Target Overlap % <input type="number" id="targetOverlap" value="75" min="50" max="87.5" step="12.5" style="width: 80px;"></label>
+        <label style="display: flex; flex-direction: row; align-items: center; gap: 8px;" title="Smooth magnitude across time to reduce warble from quantization">
+          <input type="checkbox" id="smoothMagnitude">Smooth Magnitude
+        </label>
       </div>
       <div class="row">
         <label>Pre-Gain <input type="number" id="preGainSlider" min="0.01" max="10.0" step="0.01" value="0.05"></label>
@@ -1003,7 +1009,7 @@ Fix: Ensure FFT Size & Assumed Duration (sec) is close to original. Unfortunatel
       </div>
       <div class="row">
         <label style="display: flex; flex-direction: row; align-items: center; gap: 8px;"><input type="checkbox" id="applySmoothTime">Temporal Smoothing (3-col)</label>
-        <label style="display: flex; flex-direction: row; align-items: center; gap: 8px;"><input type="checkbox" id="applyRolloff" checked>High-end Roll-off</label>
+        <label style="display: flex; flex-direction: row; align-items: center; gap: 8px;"><input type="checkbox" id="applyRolloff">High-end Roll-off</label>
       </div>
     </div>
   </div>
@@ -1521,12 +1527,27 @@ Fix: Ensure FFT Size & Assumed Duration (sec) is close to original. Unfortunatel
 
       const freqScaleLab = document.getElementById('freqScaleLabel');
       const freqScaleSel = document.getElementById('freqScale');
+      const melTypeLab = document.getElementById('melTypeLabel');
+
+      // Global function to show/hide Mel Type based on frequency scale
+      // Called when scale changes or when metadata is loaded
+      window.updateMelTypeVisibility = function() {
+        if(melTypeLab) {
+          melTypeLab.style.display = (freqScaleSel?.value === 'mel') ? '' : 'none';
+        }
+      };
+
       if(freqScaleLab && freqScaleSel){
         freqScaleLab.ondblclick = ()=>{
           const meta = window.__lastMeta || {};
           const v = (meta.freqScale || meta.scale);
-          if(v && (v==='linear' || v==='log' || v==='mel' || v==='bark')) freqScaleSel.value = v;
+          if(v && (v==='linear' || v==='log' || v==='mel' || v==='bark')) {
+            freqScaleSel.value = v;
+            window.updateMelTypeVisibility();
+          }
         };
+        freqScaleSel.addEventListener('change', window.updateMelTypeVisibility);
+        window.updateMelTypeVisibility(); // Initial state
       }
     })();
 
@@ -1568,35 +1589,40 @@ Fix: Ensure FFT Size & Assumed Duration (sec) is close to original. Unfortunatel
 
     // Convert RGB colormap value to grayscale intensity (0-1)
     // This finds the closest colormap entry and returns its position in the gradient
-    function rgbToColormapValue(r, g, b, colormapName) {
+    // If linearInput=true, skip sRGB gamma correction (for SpectroGhost images which write linear values)
+    function rgbToColormapValue(r, g, b, colormapName, linearInput = false) {
       if(colormapName === 'grayscale') {
-        // CORRECT: Convert from sRGB gamma to linear, then calculate luminance
+        if(linearInput) {
+          // SpectroGhost writes linear values directly - no gamma correction needed
+          return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+        }
+        // External images: Convert from sRGB gamma to linear, then calculate luminance
         const rLin = srgb8ToLinear01(r);
         const gLin = srgb8ToLinear01(g);
         const bLin = srgb8ToLinear01(b);
         return 0.299 * rLin + 0.587 * gLin + 0.114 * bLin;
       }
-      
+
       const colormap = COLORMAP_DATA[colormapName];
       if(!colormap) return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-      
+
       // Find closest colormap entry
       let minDist = Infinity;
       let bestIdx = 0;
-      
+
       for(let i = 0; i < colormap.length; i++) {
         const [cr, cg, cb] = colormap[i];
         const dr = r - cr;
         const dg = g - cg;
         const db = b - cb;
         const dist = dr*dr + dg*dg + db*db;
-        
+
         if(dist < minDist) {
           minDist = dist;
           bestIdx = i;
         }
       }
-      
+
       // Return normalized position in colormap (0-1)
       return 1.0 - bestIdx / (colormap.length - 1);
     }
@@ -1680,7 +1706,7 @@ async function processImage(){
       const applyFloor = document.getElementById('applyFloor')?.checked ?? true;
       const lowFloorDb = parseFloat(document.getElementById('lowFloorDb')?.value) || 60;
       const applySmoothTime = document.getElementById('applySmoothTime')?.checked ?? false;
-      const applyRolloff = document.getElementById('applyRolloff')?.checked ?? true;
+      const applyRolloff = document.getElementById('applyRolloff')?.checked ?? false;
 
       // Function to process the canvas content
       const processCanvasContent = async () => {
@@ -1689,11 +1715,19 @@ async function processImage(){
 
         let cropWidth = Math.max(1, canvas.width - marginLeft);
 
-        // Use full canvas height if no metadata, otherwise use cropHeight setting
+        // Determine rows: prefer SpectroGhost metadata __height, then canvas.height, then cropHeight
         const hasMetadata = !!(window.__lastMeta && Object.keys(window.__lastMeta).length > 0);
-        let rows = hasMetadata ? cropHeight : Math.min(cropHeight, canvas.height);
-        if (!hasMetadata && canvas.height > 0) {
-          rows = canvas.height; // JPEGs without metadata should use full height
+        // Only trust __height if it's real SpectroGhost metadata (has fftSize AND hop)
+        const isRealSpectroGhost = !!(window.__lastMeta?.fftSize && window.__lastMeta?.hop);
+        let rows;
+        if (isRealSpectroGhost && window.__lastMeta?.__height && Number.isFinite(Number(window.__lastMeta.__height))) {
+          // SpectroGhost metadata includes exact image height
+          rows = Math.round(Number(window.__lastMeta.__height));
+          log(`Using height from SpectroGhost metadata: ${rows}`);
+        } else {
+          // External image or no valid SpectroGhost metadata: use full canvas height
+          rows = canvas.height;
+          log(`Using canvas height: ${rows}`);
         }
 
         const marginBottom = 0;
@@ -1712,14 +1746,19 @@ async function processImage(){
           }
         }
 
-        // Calculate hop - prioritize metadata over duration
+        // Calculate hop - prioritize hop from metadata (exact integer) over pxPerSec (derived float)
         let hop;
         let effPxPerSec;
         let actualDuration;
 
-        // First, check if metadata has px_per_sec (most reliable from SpectroGhost)
-        // Note: SpectroGhost exports hop=fftSize/2 which is often incorrect, so prioritize pxPerSec
-        if (window.__lastMeta?.px_per_sec || window.__lastMeta?.pxPerSec) {
+        // First, check if metadata has hop (most reliable - exact integer used in STFT)
+        if (window.__lastMeta?.hop && Number.isFinite(Number(window.__lastMeta.hop))) {
+          hop = Math.max(1, Math.round(Number(window.__lastMeta.hop)));
+          effPxPerSec = sampleRate / hop;
+          actualDuration = ((cropWidth - 1) * hop + fftSize) / sampleRate;
+          log(`Using hop from metadata: ${hop}`);
+        } else if (window.__lastMeta?.px_per_sec || window.__lastMeta?.pxPerSec) {
+          // Fallback to px_per_sec if hop not available
           const pxPerSec = Number(window.__lastMeta.px_per_sec || window.__lastMeta.pxPerSec);
           if (Number.isFinite(pxPerSec) && pxPerSec > 0) {
             hop = Math.max(1, Math.round(sampleRate / pxPerSec));
@@ -1727,11 +1766,6 @@ async function processImage(){
             actualDuration = ((cropWidth - 1) * hop + fftSize) / sampleRate;
             log(`Using px_per_sec from metadata: ${pxPerSec.toFixed(2)} → hop ${hop}`);
           }
-        } else if (window.__lastMeta?.hop && Number.isFinite(Number(window.__lastMeta.hop))) {
-          hop = Math.max(1, Math.round(Number(window.__lastMeta.hop)));
-          effPxPerSec = sampleRate / hop;
-          actualDuration = ((cropWidth - 1) * hop + fftSize) / sampleRate;
-          log(`Using hop from metadata: ${hop}`);
         }
 
         // Fallback to duration-based calculation if no metadata
@@ -1769,34 +1803,45 @@ async function processImage(){
         let srcW = cropWidth, srcH = rows;
         let magsGrid = null;
 
-        // In hand-drawn mode, use the original image resolution directly
-        // Don't resample to FFT bins since we're doing direct additive synthesis
+        // For external images (no SpectroGhost metadata):
+        // - If Linear scale: resample to linear FFT bins (original behavior)
+        // - If Mel/Log/Bark: keep original image dimensions and let rowToBin handle the mapping
+        const freqScaleValue = document.getElementById('freqScale')?.value || 'linear';
+        const usePerceptualScale = (freqScaleValue === 'mel' || freqScaleValue === 'log' || freqScaleValue === 'bark');
+
         if(!hasMeta || window.__lastMeta?.optimized === 'false'){
-          const sr = sampleRate;
-          
-          // Calculate hop to match target duration exactly
-          const durBox = document.getElementById('assumedDurationSec');
-          const desiredSec = durBox && Number(durBox.value) > 0 ? Number(durBox.value) : 1.0;
-          const targetSamples = Math.round(desiredSec * sr);
-          const hop = Math.max(1, Math.round((targetSamples - fftSize) / Math.max(1, srcW - 1)));
-          
-          const posBins = Math.floor(fftSize/2);
-          let kMin = Math.max(0, Math.round(fftSize * (minFreq / sr)));
-          let kMax = Math.min(posBins - 1, Math.round(fftSize * (maxFreq / sr)));
-          if(kMax <= kMin) kMax = Math.min(posBins - 1, kMin + srcH - 1);
-          const usedBins = Math.max(1, kMax - kMin + 1);
+          if(!usePerceptualScale) {
+            // Linear scale: resample to linear FFT bins
+            const sr = sampleRate;
 
-          const targetCols = 1 + Math.max(0, Math.round((targetSamples - fftSize) / Math.max(1, hop)));
+            // Calculate hop to match target duration exactly
+            const durBox = document.getElementById('assumedDurationSec');
+            const desiredSec = durBox && Number(durBox.value) > 0 ? Number(durBox.value) : 1.0;
+            const targetSamples = Math.round(desiredSec * sr);
+            const hop = Math.max(1, Math.round((targetSamples - fftSize) / Math.max(1, srcW - 1)));
 
-          const colormapName = document.getElementById('colormapSelect')?.value || 'grayscale';
-          magsGrid = _resample2DGray(data, srcW, srcH, targetCols, usedBins, colormapName);
+            const posBins = Math.floor(fftSize/2);
+            let kMin = Math.max(0, Math.round(fftSize * (minFreq / sr)));
+            let kMax = Math.min(posBins - 1, Math.round(fftSize * (maxFreq / sr)));
+            if(kMax <= kMin) kMax = Math.min(posBins - 1, kMin + srcH - 1);
+            const usedBins = Math.max(1, kMax - kMin + 1);
 
-          cropWidth = targetCols;
-          rows = usedBins;
-          srcW = cropWidth; srcH = rows;
-          
-          const actualDuration = ((targetCols - 1) * hop + fftSize) / sr;
-          log(`Conformed external image to ${targetCols}x${usedBins} based on sr=${sr}, N=${fftSize}, hop=${hop}, target=${desiredSec.toFixed(3)}s, actual=${actualDuration.toFixed(3)}s`);
+            const targetCols = 1 + Math.max(0, Math.round((targetSamples - fftSize) / Math.max(1, hop)));
+
+            const colormapName = document.getElementById('colormapSelect')?.value || 'grayscale';
+            magsGrid = _resample2DGray(data, srcW, srcH, targetCols, usedBins, colormapName);
+
+            cropWidth = targetCols;
+            rows = usedBins;
+            srcW = cropWidth; srcH = rows;
+
+            const actualDuration = ((targetCols - 1) * hop + fftSize) / sr;
+            log(`Conformed external image to ${targetCols}x${usedBins} based on sr=${sr}, N=${fftSize}, hop=${hop}, target=${desiredSec.toFixed(3)}s, actual=${actualDuration.toFixed(3)}s`);
+          } else {
+            // Perceptual scale (Mel/Log/Bark): use original image dimensions
+            // The rowToBin mapping will handle the frequency conversion
+            log(`Using original image dimensions ${srcW}x${srcH} for ${freqScaleValue} scale mapping`);
+          }
         }
 
         const cols = cropWidth;
@@ -1823,7 +1868,16 @@ async function processImage(){
         } else {
           const colormapName = document.getElementById('colormapSelect')?.value || 'grayscale';
           log(`Using colormap: ${colormapName}`);
-        
+          // Only SpectroGhost images use linear pixel values
+          // Detect by checking for SpectroGhost-specific fields (fftSize AND hop) along with __height
+          // Just having __width/__height is not enough - some image tools add those
+          // External images (NVIDIA, etc.) use standard sRGB gamma encoding
+          const isSpectroGhost = !!(window.__lastMeta?.fftSize && window.__lastMeta?.hop &&
+                                    (window.__lastMeta?.__height || window.__lastMeta?.__width));
+          const isLinearInput = isSpectroGhost;
+          if(isLinearInput) log('Using linear pixel decoding (SpectroGhost source)');
+          else log('Using sRGB->linear pixel decoding (external source)');
+
           for(let y=0;y<rows;y++){
             const rowOff = y*cols;
             for(let x=0;x<cols;x++){
@@ -1831,9 +1885,9 @@ async function processImage(){
               const r8 = data[idx];
               const g8 = data[idx+1];
               const b8 = data[idx+2];
-        
+
               // 1) Convert RGB to normalized brightness t (0=loud, 1=quiet)
-              let t = rgbToColormapValue(r8, g8, b8, colormapName);
+              let t = rgbToColormapValue(r8, g8, b8, colormapName, isLinearInput);
         
               // 2) Apply invert purely visually
               if(invertFlag) t = 1 - t;
@@ -1848,7 +1902,6 @@ async function processImage(){
           }
         }
         log(`Matrix complete ${rows}x${cols}`);
-        log('Using sRGB->linear pixel decoding');
         if(!document.getElementById('invertColorsIn')?.checked){ log('Color interpretation: white=low, black=high (standard)'); }
         else { log('Color interpretation: black=low, white=high (inverted)'); }
         if(anyBad(mags)) warnNaNs('magnitude matrix', 'Check dynRange');
@@ -1889,16 +1942,28 @@ async function processImage(){
         if(kMax <= kMin) kMax = Math.min(posBins - 1, kMin + rows - 1);
 
         // Frequency mapping: support linear, log, mel, and bark scales
-        const freqScaleValue = document.getElementById('freqScale')?.value || 'linear';
+        // (freqScaleValue already declared above)
         const useLog = (freqScaleValue === 'log');
         const useMel = (freqScaleValue === 'mel');
         const useBark = (freqScaleValue === 'bark');
-        
+        const flipFreq = !!(document.getElementById('flipFreqAxis')?.checked);
+
+        // Helper to get normalized position t from row y (with optional flip)
+        const getT = (y) => {
+          let t = (rows - 1 - y) / Math.max(1, rows - 1);
+          if(flipFreq) t = 1 - t;  // Flip: y=0 becomes low freq instead of high
+          return t;
+        };
+
         const rowToBin = new Int32Array(rows);
         if(!useLog && !useMel && !useBark){
           // Linear mapping
           for(let y=0;y<rows;y++){
-            rowToBin[y] = kMin + (rows - 1 - y);
+            if(flipFreq) {
+              rowToBin[y] = kMin + y;
+            } else {
+              rowToBin[y] = kMin + (rows - 1 - y);
+            }
             if(rowToBin[y] < 1) rowToBin[y] = 1;
             if(rowToBin[y] >= posBins) rowToBin[y] = posBins - 1;
           }
@@ -1907,7 +1972,7 @@ async function processImage(){
           const minHz = Math.max(1e-3, minFreq);
           const maxHz = Math.max(minHz*1.001, maxFreq);
           for(let y=0;y<rows;y++){
-            const t = (rows - 1 - y) / Math.max(1, rows - 1);
+            const t = getT(y);
             const f = minHz * Math.pow(maxHz/minHz, t);
             let k = Math.round((f * fftSize) / sampleRate);
             if(k < 1) k = 1;
@@ -1917,13 +1982,21 @@ async function processImage(){
           kMin = rowToBin.reduce((a,b)=>Math.min(a,b), posBins-1);
           kMax = rowToBin.reduce((a,b)=>Math.max(a,b), 1);
         } else if(useMel) {
-          // Mel scale mapping
+          // Mel scale mapping using librosa filterbank center offsets
+          // In librosa, n_mels filters have centers at Mel points 1..n_mels out of n_mels+2 total
+          // This means filter centers don't reach exactly to min/max freq edges
           const minHz = Math.max(1e-3, minFreq);
           const maxHz = Math.max(minHz*1.001, maxFreq);
           const minMel = hzToMel(minHz);
           const maxMel = hzToMel(maxHz);
+          const nMels = rows;
           for(let y=0;y<rows;y++){
-            const t = (rows - 1 - y) / Math.max(1, rows - 1);
+            // Calculate which filter index this row represents
+            // y=0 is top of image = highest freq filter = filter (nMels-1)
+            // y=nMels-1 is bottom = lowest freq filter = filter 0
+            const filterIdx = flipFreq ? y : (rows - 1 - y);
+            // Filter i has its center at Mel point (i+1) out of (nMels+1) intervals
+            const t = (filterIdx + 1) / (nMels + 1);
             const mel = minMel + t * (maxMel - minMel);
             const f = melToHz(mel);
             let k = Math.round((f * fftSize) / sampleRate);
@@ -1934,13 +2007,15 @@ async function processImage(){
           kMin = rowToBin.reduce((a,b)=>Math.min(a,b), posBins-1);
           kMax = rowToBin.reduce((a,b)=>Math.max(a,b), 1);
         } else if(useBark) {
-          // Bark scale mapping
+          // Bark scale mapping using filterbank center offsets (same approach as Mel)
           const minHz = Math.max(1e-3, minFreq);
           const maxHz = Math.max(minHz*1.001, maxFreq);
           const minBark = hzToBark(minHz);
           const maxBark = hzToBark(maxHz);
+          const nBands = rows;
           for(let y=0;y<rows;y++){
-            const t = (rows - 1 - y) / Math.max(1, rows - 1);
+            const filterIdx = flipFreq ? y : (rows - 1 - y);
+            const t = (filterIdx + 1) / (nBands + 1);
             const bark = minBark + t * (maxBark - minBark);
             const f = barkToHz(bark);
             let k = Math.round((f * fftSize) / sampleRate);
@@ -1950,6 +2025,14 @@ async function processImage(){
           }
           kMin = rowToBin.reduce((a,b)=>Math.min(a,b), posBins-1);
           kMax = rowToBin.reduce((a,b)=>Math.max(a,b), 1);
+        }
+
+        // Log diagnostic info for frequency mapping
+        if(useLog || useMel || useBark) {
+          const topFreq = (rowToBin[0] * sampleRate) / fftSize;
+          const midFreq = (rowToBin[Math.floor(rows/2)] * sampleRate) / fftSize;
+          const botFreq = (rowToBin[rows-1] * sampleRate) / fftSize;
+          log(`Freq mapping (${freqScaleValue}${flipFreq?' flipped':''}): top=${topFreq.toFixed(0)}Hz, mid=${midFreq.toFixed(0)}Hz, bot=${botFreq.toFixed(0)}Hz`);
         }
 
         const usedSet = new Set();
@@ -2015,8 +2098,37 @@ async function processImage(){
           }
         }
 
-        if(phaseMethod === 'griffinlim'){
-          log(`Griffin-Lim x ${iterations}`);
+        // Temporal magnitude smoothing to reduce warble from quantization noise
+        // Smooth each row (frequency bin) across time with a 3-frame moving average
+        const smoothMags = document.getElementById('smoothMagnitude')?.checked;
+        if(smoothMags){
+          log('Applying temporal magnitude smoothing...');
+          const smoothed = new Float32Array(rows * workCols);
+          for(let y=0; y<rows; y++){
+            const rowOff = y * workCols;
+            for(let x=0; x<workCols; x++){
+              // 3-frame weighted average: [0.25, 0.5, 0.25]
+              const x0 = Math.max(0, x-1);
+              const x1 = x;
+              const x2 = Math.min(workCols-1, x+1);
+              smoothed[rowOff + x] = 0.25 * magsWork[rowOff + x0] +
+                                     0.5 * magsWork[rowOff + x1] +
+                                     0.25 * magsWork[rowOff + x2];
+            }
+          }
+          magsWork = smoothed;
+          log('Magnitude smoothing complete');
+        }
+
+        if(phaseMethod === 'istft'){
+          log('iSTFT synthesis with coherent phase');
+          log(`iSTFT using rows=${rows}, kMin=${kMin}, kMax=${kMax}, hop=${workHop}, fft=${fftSize}`);
+          let istftSignal = await istftReconstruct(magsWork, rows, workCols, sampleRate, fftSize, workHop, kMin, kMax, rowToBin, log);
+          log(`Smoother window set to ${document.getElementById('postSmoothMs')?.value||10} ms`);
+          await finalizeAudio(istftSignal, sampleRate, effPxPerSec);
+          return;
+        } else if(phaseMethod === 'griffinlim'){
+          log(`Fast Griffin-Lim (FGLA) x ${iterations}`);
           if(iterations < 8) log('Tip: Griffin-Lim usually needs 12-32 iterations for clear speech.');
           log(`GL using rows=${rows}, kMin=${kMin}, kMax=${kMax}, hop=${workHop}, fft=${fftSize}`);
           let glSignal = await griffinLimReconstruct(magsWork, rows, workCols, sampleRate, fftSize, workHop, kMin, kMax, rowToBin, iterations, log);
@@ -2139,7 +2251,23 @@ async function processImage(){
           signal.set(out);
         }
       }
-      
+
+      // Apply short fade-in/fade-out to prevent click/chirp artifacts
+      const fadeMs = 5;
+      const fadeSamples = Math.min(Math.round(sampleRate * fadeMs / 1000), Math.floor(signal.length / 2));
+      // Fade-in at start
+      for(let i = 0; i < fadeSamples; i++){
+        const t = i / fadeSamples; // 0 at start, approaches 1 at fade end
+        const env = 0.5 * (1 - Math.cos(Math.PI * t)); // Cosine fade: 0 at start, 1 at fade end
+        signal[i] *= env;
+      }
+      // Fade-out at end
+      for(let i = 0; i < fadeSamples; i++){
+        const t = i / fadeSamples; // 0 at end, approaches 1 at fade start
+        const env = 0.5 * (1 - Math.cos(Math.PI * t)); // Cosine fade: 0 at end, 1 at fade start
+        signal[signal.length - 1 - i] *= env;
+      }
+
       log('Encoding WAV');
       await yieldUI();
       const wav = encodeWAV(signal, sampleRate);
@@ -2202,21 +2330,65 @@ async function processImage(){
     }
 
     /**
-    * Convert Hz to Mel scale
+    * Convert Hz to Mel scale (HTK formula)
     * @param {number} hz - Frequency in Hz
     * @returns {number} Mel value
     */
-    function hzToMel(hz) {
+    function hzToMelHTK(hz) {
      return 2595 * Math.log10(1 + hz / 700);
     }
-    
+
     /**
-    * Convert Mel to Hz
+    * Convert Mel to Hz (HTK formula)
     * @param {number} mel - Mel value
     * @returns {number} Frequency in Hz
     */
-    function melToHz(mel) {
+    function melToHzHTK(mel) {
      return 700 * (Math.pow(10, mel / 2595) - 1);
+    }
+
+    /**
+    * Convert Hz to Mel scale (Slaney/Librosa formula)
+    * Used by librosa, NVIDIA DALI, and many ML frameworks
+    */
+    function hzToMelSlaney(hz) {
+      const f_sp = 200.0 / 3.0;  // ~66.67 Hz
+      const min_log_hz = 1000.0;
+      const min_log_mel = min_log_hz / f_sp;  // 15.0
+      const logstep = Math.log(6.4) / 27.0;
+
+      if (hz < min_log_hz) {
+        return hz / f_sp;
+      } else {
+        return min_log_mel + Math.log(hz / min_log_hz) / logstep;
+      }
+    }
+
+    /**
+    * Convert Mel to Hz (Slaney/Librosa formula)
+    */
+    function melToHzSlaney(mel) {
+      const f_sp = 200.0 / 3.0;
+      const min_log_hz = 1000.0;
+      const min_log_mel = min_log_hz / f_sp;  // 15.0
+      const logstep = Math.log(6.4) / 27.0;
+
+      if (mel < min_log_mel) {
+        return mel * f_sp;
+      } else {
+        return min_log_hz * Math.exp((mel - min_log_mel) * logstep);
+      }
+    }
+
+    // Wrapper functions that use the selected Mel formula
+    function hzToMel(hz) {
+      const melType = document.getElementById('melType')?.value || 'htk';
+      return melType === 'slaney' ? hzToMelSlaney(hz) : hzToMelHTK(hz);
+    }
+
+    function melToHz(mel) {
+      const melType = document.getElementById('melType')?.value || 'htk';
+      return melType === 'slaney' ? melToHzSlaney(mel) : melToHzHTK(mel);
     }
     
     /**
@@ -2288,7 +2460,7 @@ async function processImage(){
         fftRadix2(re, im, true);
         const start = f*hop;
         for(let i=0;i<fftSize;i++){
-          const s = re[i];
+          const s = re[i] * w[i]; // Apply synthesis window
           out[start+i]+=s;
           norm[start+i]+=w[i]*w[i];
         }
@@ -2807,6 +2979,56 @@ async function processImage(){
       return signal;
     }
 
+    /**
+     * Simple iSTFT reconstruction with coherent phase (no iterations)
+     * Fast single-pass synthesis using expected sinusoidal phase progression
+     */
+    async function istftReconstruct(magRowsCols, rows, cols, fs, N, hop, kMin, kMax, rowToBin, logFn){
+      const preGain = __getPreGain();
+      const posBins = Math.floor(N/2);
+      const frames = cols;
+
+      logFn && logFn(`iSTFT: frames ${frames}, posBins ${posBins}, k ${kMin}..${kMax}`);
+
+      // Build target magnitude array
+      const target = new Array(frames);
+      for(let c=0;c<frames;c++){
+        const mag = new Float32Array(posBins);
+        for(let y=0;y<rows;y++){
+          const k = rowToBin[y];
+          if(k>=0 && k<posBins){
+            const a = magRowsCols[y*cols + c];
+            if(a>mag[k]) mag[k]=a;
+          }
+        }
+        const specScale = N / 2;
+        for(let k=0;k<posBins;k++){ mag[k] *= specScale * preGain; }
+        target[c]=mag;
+      }
+
+      // Build spectrum with coherent phase
+      const spec = new Array(frames);
+      for(let c=0;c<frames;c++){
+        const re=new Float32Array(N), im=new Float32Array(N);
+        for(let k=0;k<posBins;k++){
+          const a = target[c][k];
+          // Coherent phase: bin k advances by 2πk per frame (hop samples)
+          const ph = 2 * Math.PI * k * c * hop / N;
+          re[k]=a*Math.cos(ph); im[k]=a*Math.sin(ph);
+        }
+        im[0]=0; const ny=posBins; re[ny]=0; im[ny]=0;
+        for(let k=1;k<posBins;k++){ re[N-k]=re[k]; im[N-k]=-im[k]; }
+        spec[c]={re, im};
+      }
+
+      // Single iSTFT pass
+      const outLen = hop*(frames - 1) + N;
+      const signal = istft({spec, fftSize: N}, hop, outLen);
+
+      logFn && logFn(`iSTFT complete: ${signal.length} samples (${(signal.length / fs).toFixed(2)}s)`);
+      return signal;
+    }
+
     async function griffinLimReconstruct(magRowsCols, rows, cols, fs, N, hop, kMin, kMax, rowToBin, iters, logFn){
       const preGain = __getPreGain();
       const posBins = Math.floor(N/2);
@@ -2832,12 +3054,14 @@ async function processImage(){
       }
 
       const spec = new Array(frames);
+      // Use coherent initial phase instead of random for better convergence
+      // Phase at bin k, frame c: expected phase if signal is continuous sinusoid
       for(let c=0;c<frames;c++){
-        let maxA = 0;
         const re=new Float32Array(N), im=new Float32Array(N);
         for(let k=0;k<posBins;k++){
           const a = target[c][k];
-          const ph = 2*Math.PI*Math.random();
+          // Coherent phase: bin k advances by 2πk per frame (hop samples)
+          const ph = 2 * Math.PI * k * c * hop / N;
           re[k]=a*Math.cos(ph); im[k]=a*Math.sin(ph);
         }
         im[0]=0; const ny=posBins; re[ny]=0; im[ny]=0;
@@ -2847,33 +3071,55 @@ async function processImage(){
 
       const outLen = hop*(frames - 1) + N;
       let signal = istft({spec, fftSize: N}, hop, outLen);
-      logFn && logFn('Starting Griffin-Lim iterations with standard algorithm');
-      
+
+      // Fast Griffin-Lim Algorithm (FGLA) with momentum for faster convergence and less wobble
+      // Reference: Perraudin et al., "A fast Griffin-Lim algorithm" (2013)
+      const momentum = 0.99; // Momentum coefficient (0.99 is typical)
+      let prevSignal = null;
+      logFn && logFn('Starting Fast Griffin-Lim (FGLA) with momentum');
+
       for(let it=0; it<iters; it++){
         if(anyBad(signal)) warnNaNs('Griffin-Lim iteration '+(it+1), 'Signal contains invalid numbers');
-        const ana = stft(signal, N, hop);
-        
-        // Standard Griffin-Lim: extract phase from STFT, replace magnitude, iterate
+
+        // Apply momentum: accelerate in the direction of change
+        let workSignal = signal;
+        if(prevSignal && momentum > 0){
+          workSignal = new Float32Array(signal.length);
+          for(let i=0; i<signal.length; i++){
+            workSignal[i] = signal[i] + momentum * (signal[i] - prevSignal[i]);
+          }
+        }
+
+        const ana = stft(workSignal, N, hop);
+
+        // Get magnitude strictness (100 = exact match, lower = softer constraint)
+        const strictnessEl = document.getElementById('magStrictness');
+        const strictness = strictnessEl ? Number(strictnessEl.value) / 100 : 1.0;
+
+        // Standard Griffin-Lim projection: extract phase, apply target magnitude
         for(let c=0;c<frames;c++){
           const re=ana.spec[c].re, im=ana.spec[c].im;
           for(let k=0;k<posBins;k++){
-            // Extract current phase from the STFT analysis
+            // Extract phase from current STFT
             const ph = Math.atan2(im[k], re[k]);
-            // Replace magnitude with target, keeping the estimated phase
-            const a = target[c][k];
-            re[k]=a*Math.cos(ph); 
+            // Get current magnitude for soft constraint
+            const currentMag = Math.sqrt(re[k]*re[k] + im[k]*im[k]);
+            // Blend between current and target magnitude
+            const a = strictness * target[c][k] + (1 - strictness) * currentMag;
+            re[k]=a*Math.cos(ph);
             im[k]=a*Math.sin(ph);
           }
           // Apply conjugate symmetry for real signal
-          for(let k=1;k<posBins;k++){ 
-            ana.spec[c].re[N-k]=ana.spec[c].re[k]; 
-            ana.spec[c].im[N-k]=-ana.spec[c].im[k]; 
+          for(let k=1;k<posBins;k++){
+            ana.spec[c].re[N-k]=ana.spec[c].re[k];
+            ana.spec[c].im[N-k]=-ana.spec[c].im[k];
           }
-          ana.spec[c].im[0]=0; 
-          ana.spec[c].re[posBins]=0; 
+          ana.spec[c].im[0]=0;
+          ana.spec[c].re[posBins]=0;
           ana.spec[c].im[posBins]=0;
         }
-        
+
+        prevSignal = signal;
         signal = istft({spec: ana.spec, fftSize: N}, hop, outLen);
         let rms=0;
         for(let i=0;i<signal.length;i++){ const s=signal[i]; rms+=s*s; }
@@ -2966,25 +3212,38 @@ async function processImage(){
       if(metaMap.fftSize) setVal('fftSize', metaMap.fftSize);
       if(metaMap.freqScale){ if(byId('freqScale')) setVal('freqScale', String(metaMap.freqScale)); }
       else if(metaMap.scale){ if(byId('freqScale')) setVal('freqScale', String(metaMap.scale)); }
+      // Set Mel Type from metadata (SpectroGhost uses 'htk', librosa/NVIDIA use 'slaney')
+      if(metaMap.melType){ setVal('melType', String(metaMap.melType)); }
       if(metaMap.minHz) setVal('minFreq', metaMap.minHz);
       if(metaMap.maxHz) setVal('maxFreq', metaMap.maxHz);
       if(metaMap.__height) setVal('cropHeight', metaMap.__height);
       if(metaMap.invertColors!=null){ const v = String(metaMap.invertColors).toLowerCase(); const on = (v==='1'||v==='true'); const el=document.getElementById('invertColorsIn'); if(el) el.checked=on; }
-      if(metaMap.dynRange) setVal('dynRange', metaMap.dynRange);
+      if(metaMap.dynRange) {
+        setVal('dynRange', metaMap.dynRange);
+        // For SpectroGhost files, set Noise Floor to match Dynamic Range
+        // SpectroGhost files have fftSize and hop in metadata
+        if(metaMap.fftSize && metaMap.hop) {
+          setVal('lowFloorDb', metaMap.dynRange);
+        }
+      }
       if(metaMap.duration_sec || metaMap.durationSec || metaMap.duration) {
         const dur = metaMap.duration_sec || metaMap.durationSec || metaMap.duration;
         setVal('assumedDurationSec', dur);
       }
       if(metaMap.sampleRate && byId('sampleRate')) setVal('sampleRate', metaMap.sampleRate);
+
+      // Update Mel Type dropdown visibility based on loaded scale
+      if(window.updateMelTypeVisibility) window.updateMelTypeVisibility();
     }
 
     (function(){
       const ip = document.getElementById('imageInput');
       if(!ip) return;
       ip.addEventListener('change', async (ev)=>{
-        // Reset the flag when a new image is loaded
+        // Reset metadata state when a new image is loaded
         window.__metadataAlreadyApplied = false;
-        
+        window.__lastMeta = null;  // Clear previous metadata to prevent stale data
+
         try{
           const f = ev.target.files && ev.target.files[0];
           if(!f) return;
@@ -2994,7 +3253,7 @@ async function processImage(){
             console.log('[meta] PNG tEXt found', meta);
             applySpectroMeta(meta);
           } else {
-            console.log('[meta] no PNG tEXt found');
+            console.log('[meta] no PNG tEXt found, metadata cleared');
           }
         }catch(e){ console.warn('[meta] read failed', e); }
       });

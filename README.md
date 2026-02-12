@@ -16,13 +16,14 @@ All computation happens using browser-native APIs for file handling, pixel proce
 
 ## Features
 
-- **True phase reconstruction:** Choose between Griffin–Lim, PGHI, or running-sine methods.  
-- **Flexible frequency scaling:** Linear, log, mel, and bark modes for matching spectrogram exports.  
-- **Multiple colormaps:** Supports grayscale, viridis, plasma, inferno, magma, jet, hot, cool, and parula.  
-- **Dynamic range and noise control:** Adjust floor, range, and smoothing parameters to fine-tune results.  
-- **Real-time preview:** View reconstructed waveform playback immediately in the browser.  
-- **Offline operation:** Everything runs locally using Canvas and Web Audio APIs.  
-- **Metadata-aware:** Automatically reads `tEXt` fields from PNG spectrograms exported by compatible tools (such as SpectroGhost).
+- **True phase reconstruction:** Choose between Griffin–Lim (with FGLA momentum), PGHI, or running-sine methods.
+- **Flexible frequency scaling:** Linear, log, mel (HTK/Slaney), and bark modes for matching spectrogram exports.
+- **Librosa-compatible Mel:** Uses filterbank center offsets for accurate mel-scale reconstruction.
+- **Multiple colormaps:** Supports grayscale, viridis, plasma, inferno, magma, jet, hot, cool, and parula.
+- **Dynamic range and noise control:** Adjust floor, range, and smoothing parameters to fine-tune results.
+- **Real-time preview:** View reconstructed waveform playback immediately in the browser.
+- **Offline operation:** Everything runs locally using Canvas and Web Audio APIs.
+- **Metadata-aware:** Automatically reads `tEXt` fields from PNG spectrograms exported by compatible tools (such as SpectroGhost), including auto-configuration of noise floor for optimal reconstruction.
 
 ## Technical Notes
 
@@ -30,14 +31,15 @@ All computation happens using browser-native APIs for file handling, pixel proce
 
 ReSounder provides multiple phase estimation methods:
 
-- **Griffin–Lim:** Iterative STFT-based phase refinement with controllable iteration count.  
-- **PGHI (True/Approximate):** Phase Gradient Heap Integration for accurate analytic phase estimation.  
+- **Griffin–Lim:** Iterative STFT-based phase refinement with FGLA momentum (α=0.99) for faster convergence.
+- **PGHI (True/Approximate):** Phase Gradient Heap Integration for accurate analytic phase estimation.
 - **Running-Sine:** Simple forward-synthesis model for fast and approximate reconstructions.
 
 ### Frequency Mapping
 
-- Linear mapping matches raw FFT outputs.  
-- Log, Mel, and Bark scales are supported for perceptual spectrograms.  
+- Linear mapping matches raw FFT outputs.
+- Log, Mel (HTK and Slaney formulas), and Bark scales are supported for perceptual spectrograms.
+- Librosa-style filterbank center offsets for Mel scale ensure accurate pitch recovery.
 - Automatic bin-to-frequency conversion ensures accurate pitch and tone recovery.
 
 ### Color Interpretation
