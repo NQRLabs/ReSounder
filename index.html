@@ -2414,6 +2414,26 @@ async function processImage(){
       return w;
     }
 
+    // Cache FFT twiddle factors by size - avoids recomputing cos/sin on every FFT call
+    const _twiddleCache = new Map();
+    function getTwiddles(n){
+      if(_twiddleCache.has(n)) return _twiddleCache.get(n);
+      const twiddles = [];
+      for(let len=2; len<=n; len<<=1){
+        const half = len >> 1;
+        const cos = new Float32Array(half);
+        const sin = new Float32Array(half);
+        for(let k=0; k<half; k++){
+          const ang = -2 * Math.PI * k / len;
+          cos[k] = Math.cos(ang);
+          sin[k] = Math.sin(ang);
+        }
+        twiddles.push({cos, sin});
+      }
+      _twiddleCache.set(n, twiddles);
+      return twiddles;
+    }
+
     /**
     * Convert Hz to Mel scale (HTK formula)
     * @param {number} hz - Frequency in Hz
@@ -2497,27 +2517,32 @@ async function processImage(){
     
     function fftRadix2(re, im, inverse=false){
       const n=re.length;
+      // Bit-reversal permutation
       for(let i=1,j=0;i<n;i++){
         let bit=n>>1;
         for(; j & bit; bit>>=1) j^=bit;
         j^=bit;
         if(i<j){ let tr=re[i]; re[i]=re[j]; re[j]=tr; tr=im[i]; im[i]=im[j]; im[j]=tr; }
       }
+      // Use cached twiddle factors instead of computing cos/sin each time
+      const twiddles = getTwiddles(n);
+      const sign = inverse ? -1 : 1;
+      let stage = 0;
       for(let len=2; len<=n; len<<=1){
-        const ang=(inverse?2:-2)*Math.PI/len, wlenr=Math.cos(ang), wleni=Math.sin(ang);
-        for(let i=0;i<n;i+=len){
-          let wr=1, wi=0;
-          for(let k=0;k<(len>>1);k++){
-            const j=i+k, l=j+(len>>1);
+        const {cos, sin} = twiddles[stage++];
+        const half = len >> 1;
+        for(let i=0; i<n; i+=len){
+          for(let k=0; k<half; k++){
+            const j=i+k, l=j+half;
+            const wr = cos[k], wi = sign * sin[k];
             const tr = wr*re[l] - wi*im[l];
             const ti = wr*im[l] + wi*re[l];
             re[l]=re[j]-tr; im[l]=im[j]-ti;
             re[j]+=tr; im[j]+=ti;
-            const wtmp=wr; wr=wlenr*wr - wleni*wi; wi=wlenr*wi + wleni*wtmp;
           }
         }
       }
-      if(inverse){ for(let i=0;i<n;i++){ re[i]/=n; im[i]/=n; } }
+      if(inverse){ const inv=1/n; for(let i=0;i<n;i++){ re[i]*=inv; im[i]*=inv; } }
     }
 
     function stft(signal, fftSize, hop){
