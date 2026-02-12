@@ -2404,9 +2404,13 @@ async function processImage(){
       return buf;
     }
 
+    // Cache Hann windows by size - avoids recomputing N cos() calls on every stft/istft
+    const _hannCache = new Map();
     function hannWindow(n){
+      if(_hannCache.has(n)) return _hannCache.get(n);
       const w=new Float32Array(n);
       for(let i=0;i<n;i++) w[i]=0.5*(1-Math.cos(2*Math.PI*i/(n-1)));
+      _hannCache.set(n, w);
       return w;
     }
 
