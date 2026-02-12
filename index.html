@@ -2434,6 +2434,17 @@ async function processImage(){
       return twiddles;
     }
 
+    // Cache squared Hann windows for istft normalization - avoids w[i]*w[i] on every frame
+    const _hannSqCache = new Map();
+    function hannWindowSq(n){
+      if(_hannSqCache.has(n)) return _hannSqCache.get(n);
+      const w = hannWindow(n);
+      const wsq = new Float32Array(n);
+      for(let i=0; i<n; i++) wsq[i] = w[i] * w[i];
+      _hannSqCache.set(n, wsq);
+      return wsq;
+    }
+
     /**
     * Convert Hz to Mel scale (HTK formula)
     * @param {number} hz - Frequency in Hz
@@ -2563,6 +2574,7 @@ async function processImage(){
     function istft(specObj, hop, outLen){
       const {spec, fftSize} = specObj;
       const w = hannWindow(fftSize);
+      const wsq = hannWindowSq(fftSize);  // Pre-computed w[i]*w[i]
       const out = new Float32Array(outLen);
       const norm = new Float32Array(outLen);
       for(let f=0; f<spec.length; f++){
@@ -2572,7 +2584,7 @@ async function processImage(){
         for(let i=0;i<fftSize;i++){
           const s = re[i] * w[i]; // Apply synthesis window
           out[start+i]+=s;
-          norm[start+i]+=w[i]*w[i];
+          norm[start+i]+=wsq[i];  // Use cached squared window
         }
       }
       for(let i=0;i<out.length;i++){ const d = norm[i]; out[i] = (d>1e-12)? (out[i]/d) : 0; }
