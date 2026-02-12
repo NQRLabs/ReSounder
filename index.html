@@ -779,21 +779,22 @@
       <label><input type="checkbox" id="applyFloor" checked>Apply low-level floor</label>
     </div>
 
+    <!-- SECTION: Spectrogram Input -->
     <div class="control-section">
-      <!-- File input at the top -->
-      <h3>🖼️ Spectrogram Input</h3>
+      <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 8px;">
+        <h3 style="margin: 0;">🖼️ SPECTROGRAM INPUT</h3>
+        <div class="tip-footer" id="tipLink" style="margin: 0;">
+          Tips for getting good results
+        </div>
+      </div>
+
       <div style="margin: 10px 0;">
         <input type="file" id="imageInput" accept="image/png,image/jpeg,image/jpg,image/webp,image/*">
         <span style="color: var(--dim); font-size: 13px; font-style: italic;">or Ctrl+V to paste</span>
       </div>
       <!-- Thumbnail preview for quick reference -->
       <canvas id="thumbnail" class="thumbnail-preview"></canvas>
-  
-      <!-- Tips & Troubleshooting -->
-      <div class="tip-footer" id="tipLink">
-        Tips for getting good results
-      </div>
-    
+
       <!-- Tip Modal -->
       <div class="tip-overlay" id="tipOverlay"></div>
       <div class="tip-modal" id="tipModal">
@@ -816,12 +817,12 @@ Fix: Increase Max Frequency if the audio sounds too deep. Decrease Min Frequency
 <li><b>Audio timing seems stretched or compressed</b>
 Symptom: Speech rate or tempo sounds wrong.
 Likely cause: Horizontal scale mismatch. Time axis scaling changes the actual duration mapping.
-Fix: Adjust Assumed Duration (sec) to match original export.  Re-render preview with new value before reconstruction.</li>
+Fix: Adjust Duration (sec) to match original export.  Re-render preview with new value before reconstruction.</li>
 
 <li><b>Audio is just loud impulsive noise</b>
 Symptom: Energy bursts appear instead of smooth tonal content.
 Likely cause: FFT size too small for the image's time resolution. If the time window is too short, harmonic structure collapses into broadband transients.
-Fix: Increase FFT Size to improve frequency resolution. Reduce Assumed Duration (sec) if needed to balance performance. Ideal FFT sizes for speech sampled at 44.1-48 kHz are around 2048 and 4096.</li>
+Fix: Increase FFT Size to improve frequency resolution. Reduce Duration (sec) if needed to balance performance. Ideal FFT sizes for speech sampled at 44.1-48 kHz are around 2048 and 4096.</li>
 
 <li><b>Audio sounds "sing-songy"</b>
 Symptom: Sustained tones rise and fall unnaturally, creating a melodic lilt that was not present in the original audio.
@@ -851,33 +852,12 @@ Fix: Decrease Noise Floor (dB).  Increase Dynamic Range (dB) slightly.</li>
 
 <li><b>Audio has "underwater" / "phasing" artifacts</b>
 Symptom: Warbly, chorus-like sound.
-Likely cause: Phase propagation struggling due to abrupt changes. 
-Fix: Ensure FFT Size & Assumed Duration (sec) is close to original. Unfortunately, this is the main symptom of phase reconstruction and can't be entirely removed.</li>
+Likely cause: Phase propagation struggling due to abrupt changes.
+Fix: Ensure FFT Size & Duration (sec) is close to original. Unfortunately, this is the main symptom of phase reconstruction and can't be entirely removed.</li>
 </ol>
         </pre>
       </div>
-    </div>
 
-    <!-- SECTION: Basic Settings -->
-    <div class="control-section">
-      <h3>⚙️ Basic Settings</h3>
-
-      <div class="row">
-        <label id="sampleRateLabel" style="cursor:pointer" title="Double-click to reset">Sample Rate (Hz) <input type="number" id="sampleRate" value="48000" min="8000" max="192000" step="1000"></label>
-        <label id="fftSizeLabel" style="cursor:pointer" title="Double-click to reset">FFT Size <select id="fftSize"><option value="256">256</option><option value="512">512</option><option value="1024">1024</option><option value="2048" selected>2048</option><option value="4096">4096</option><option value="8192">8192</option><option value="16384">16384</option></select></label>
-        <label id="assumedDurationLabel">Assumed Duration (sec) <input type="number" id="assumedDurationSec" value="1.0" step="0.1" min="0.1" style="padding:4px 8px; border-radius:6px; width:90px;"></label>
-      </div>
-      <div class="row">
-        <label id="freqScaleLabel" style="cursor:pointer" title="Double-click to reset">Frequency Scale <select id="freqScale"><option value="linear" selected>Linear</option><option value="log">Log</option><option value="mel">Mel</option><option value="bark">Bark</option></select></label>
-        <label id="melTypeLabel" title="Mel formula type - Slaney is used by librosa/NVIDIA">Mel Type <select id="melType"><option value="htk">HTK</option><option value="slaney" selected>Slaney (librosa)</option></select></label>
-        <label id="minFreqLabel" style="cursor:pointer" title="Double-click to reset">Min Frequency (Hz) <input type="number" id="minFreq" value="0" step="1"></label>
-        <label id="maxFreqLabel" style="cursor:pointer" title="Double-click to reset">Max Frequency (Hz) <input type="number" id="maxFreq" value="4500" step="1"></label>
-      </div>
-    </div>
-
-    <!-- SECTION: Image Interpretation -->
-    <div class="control-section">
-      <h3>🎨 Image Interpretation</h3>
       <div class="row">
         <div style="display: flex; align-items: flex-start; gap: 16px;">
           <div>
@@ -888,62 +868,62 @@ Fix: Ensure FFT Size & Assumed Duration (sec) is close to original. Unfortunatel
                 <span class="colormap-name">Grayscale</span>
                 <div class="option-gradient gradient-grayscale"></div>
               </label>
-              
+
               <label class="colormap-option">
                 <input type="radio" name="colormap" value="viridis">
                 <span class="colormap-name">Viridis</span>
                 <div class="option-gradient gradient-viridis"></div>
               </label>
-              
+
               <label class="colormap-option">
                 <input type="radio" name="colormap" value="plasma">
                 <span class="colormap-name">Plasma</span>
                 <div class="option-gradient gradient-plasma"></div>
               </label>
-              
+
               <label class="colormap-option">
                 <input type="radio" name="colormap" value="inferno">
                 <span class="colormap-name">Inferno</span>
                 <div class="option-gradient gradient-inferno"></div>
               </label>
-              
+
               <label class="colormap-option">
                 <input type="radio" name="colormap" value="magma">
                 <span class="colormap-name">Magma</span>
                 <div class="option-gradient gradient-magma"></div>
               </label>
-              
+
               <label class="colormap-option">
                 <input type="radio" name="colormap" value="jet">
                 <span class="colormap-name">Jet</span>
                 <div class="option-gradient gradient-jet"></div>
               </label>
-              
+
               <label class="colormap-option">
                 <input type="radio" name="colormap" value="hot">
                 <span class="colormap-name">Hot</span>
                 <div class="option-gradient gradient-hot"></div>
               </label>
-              
+
               <label class="colormap-option">
                 <input type="radio" name="colormap" value="cool">
                 <span class="colormap-name">Cool</span>
                 <div class="option-gradient gradient-cool"></div>
               </label>
-              
+
               <label class="colormap-option">
                 <input type="radio" name="colormap" value="parula">
                 <span class="colormap-name">Parula</span>
                 <div class="option-gradient gradient-parula"></div>
               </label>
             </div>
-            
+
             <label style="display: flex; flex-direction: row; align-items: center; gap: 8px; margin-top: 8px; width: fit-content; margin-left: auto; margin-right: auto; cursor: pointer;">
               <input type="checkbox" id="invertColorsIn" style="margin: 0;">
               <span>Invert Colors</span>
             </label>
           </div>
-        
+
         <select id="colormapSelect" style="display: none;">
           <option value="grayscale">Grayscale (default)</option>
           <option value="viridis">Viridis</option>
@@ -955,28 +935,39 @@ Fix: Ensure FFT Size & Assumed Duration (sec) is close to original. Unfortunatel
           <option value="cool">Cool</option>
           <option value="parula">Parula</option>
         </select>
+        </div>
       </div>
+
       <div class="row">
         <label id="dynRangeLabel" style="cursor:pointer" title="Double-click to reset">Dynamic Range (dB) <input type="number" id="dynRange" value="40" min="10" max="140" step="1"></label>
         <label>Noise Floor (dB) <input type="number" id="lowFloorDb" value="40" min="20" max="120" step="1"></label>
       </div>
-    </div>
 
-    <!-- SECTION: Phase Reconstruction -->
-    <div class="control-section">
-      <h3>🔄 Phase Reconstruction</h3>
       <div class="row">
-        <label>Method
+        <label id="freqScaleLabel" style="cursor:pointer" title="Double-click to reset">Frequency Scale <select id="freqScale"><option value="linear" selected>Linear</option><option value="log">Log</option><option value="mel">Mel</option><option value="bark">Bark</option></select></label>
+        <label id="melTypeLabel" title="Mel formula type - Slaney is used by librosa/NVIDIA">Mel Type <select id="melType"><option value="htk">HTK</option><option value="slaney" selected>Slaney (librosa)</option></select></label>
+        <label id="minFreqLabel" style="cursor:pointer" title="Double-click to reset">Min Frequency (Hz) <input type="number" id="minFreq" value="0" step="1"></label>
+        <label id="maxFreqLabel" style="cursor:pointer" title="Double-click to reset">Max Frequency (Hz) <input type="number" id="maxFreq" value="4500" step="1"></label>
+      </div>
+
+      <div class="row">
+        <label id="assumedDurationLabel">Duration (sec) <input type="number" id="assumedDurationSec" value="1.0" step="0.1" min="0.1" style="padding:4px 8px; border-radius:6px; width:90px;"></label>
+        <label id="sampleRateLabel" style="cursor:pointer" title="Double-click to reset">Sample Rate (Hz) <input type="number" id="sampleRate" value="48000" min="8000" max="192000" step="1000"></label>
+        <label id="fftSizeLabel" style="cursor:pointer" title="Double-click to reset">FFT Size <select id="fftSize"><option value="256">256</option><option value="512">512</option><option value="1024">1024</option><option value="2048" selected>2048</option><option value="4096">4096</option><option value="8192">8192</option><option value="16384">16384</option></select></label>
+      </div>
+
+      <div class="row">
+        <label>Phase Method
           <select id="phaseMethod">
             <option value="istft">iSTFT (coherent phase)</option>
             <option value="running">Running-sine</option>
             <option value="griffinlim" selected>Griffin-Lim (FGLA)</option>
             <option value="pghi_like">PGHI (approx)</option>
             <option value="pghi_true">PGHI (true)</option>
-            <option value="neural">Neural Vocoder (best quality)</option>
+            <option value="neural">Neural Vocoder</option>
           </select>
         </label>
-        <label>Iterations <input type="number" id="iterations" value="24" min="1" max="50" step="1"></label>
+        <label id="iterationsLabel">Iterations <input type="number" id="iterations" value="24" min="1" max="50" step="1"></label>
         <label title="100% = exact magnitude match, lower = smoother phase">Mag Strictness % <input type="number" id="magStrictness" value="100" min="50" max="100" step="5" style="width: 70px;"></label>
       </div>
       <div class="row" id="neuralVocoderOptions" style="display: none;">
@@ -984,40 +975,36 @@ Fix: Ensure FFT Size & Assumed Duration (sec) is close to original. Unfortunatel
         <label>Model Sample Rate <input type="number" id="vocoderSampleRate" value="22050" min="8000" max="48000" step="1" style="width: 100px;"></label>
         <button id="loadVocoderBtn" style="white-space: nowrap;">Load Model</button>
       </div>
+
+    </div>
+
+    <!-- SECTION: Pre/Post-Processing (Optional) -->
+    <div class="control-section">
+      <h3>⚙️ PRE/POST-PROCESSING (OPTIONAL)</h3>
+      <div class="row">
+        <label>Pre-Gain <input type="number" id="preGainSlider" min="0.1" max="10.0" step="0.1" value="1.0"></label>
+        <label>Post-Gain <input type="number" id="postGainSlider" min="0.1" max="10.0" step="0.1" value="1.0"></label>
+        <label style="display: flex; flex-direction: row; align-items: center; gap: 8px;"><input type="checkbox" id="reverseCheckbox">Reverse Audio</label>
+      </div>
       <div class="row">
         <label style="display: flex; flex-direction: row; align-items: center; gap: 8px;">
           <input type="checkbox" id="interpolateFrames">Interpolate Frames
         </label>
         <label>Target Overlap % <input type="number" id="targetOverlap" value="75" min="50" max="87.5" step="12.5" style="width: 80px;"></label>
         <label style="display: flex; flex-direction: row; align-items: center; gap: 8px;" title="Smooth magnitude across time to reduce warble from quantization">
-          <input type="checkbox" id="smoothMagnitude">Smooth Magnitude
+          <input type="checkbox" id="smoothMagnitude">Pre-smooth Spectrogram
         </label>
       </div>
       <div class="row">
-        <label>Pre-Gain <input type="number" id="preGainSlider" min="0.01" max="10.0" step="0.01" value="0.05"></label>
-        <label>Post-Gain <input type="number" id="postGainSlider" min="0.1" max="10.0" step="0.1" value="1.0"></label>
-        <label style="display: flex; flex-direction: row; align-items: center; gap: 8px;"><input type="checkbox" id="reverseCheckbox">Reverse Audio</label>
-      </div>
-    </div>
-
-    <!-- SECTION: Post-Processing -->
-    <div class="control-section">
-      <h3>✨ Post-Processing (Not recommended)</h3>
-      <div class="row">
-        <label style="display: flex; flex-direction: row; align-items: center; gap: 8px;"><input type="checkbox" id="postSmooth">Post-reconstruction Smoother</label>
-        <label>Window ms <input type="number" id="postSmoothMs" value="10" min="1" max="200" step="1"></label>
-      </div>
-      <div class="row">
-        <label style="display: flex; flex-direction: row; align-items: center; gap: 8px;"><input type="checkbox" id="applySmoothTime">Temporal Smoothing (3-col)</label>
         <label style="display: flex; flex-direction: row; align-items: center; gap: 8px;"><input type="checkbox" id="applyRolloff">High-end Roll-off</label>
+        <label style="display: flex; flex-direction: row; align-items: center; gap: 8px;"><input type="checkbox" id="applySmoothTime">Temporal Smoothing (3-col)</label>
       </div>
     </div>
-  </div>
   </div>
 
   <div class="controls">
     <div class="control-section">
-      <h3>🎵 Inverted Audio</h3>
+      <h3>🎵 INVERTED AUDIO</h3>
       <!-- Volume Warning -->
       <div style="width: 90vw; max-width: 700px; background: rgba(248, 149, 64, 0.15); border: 1px solid #f89540; border-radius: 8px; padding: 12px 16px; margin: 10px 0; text-align: center;">
         <span style="color: #f89540; font-weight: 600;">WARNING:</span>
@@ -1076,13 +1063,25 @@ Fix: Ensure FFT Size & Assumed Duration (sec) is close to original. Unfortunatel
       const loadVocoderBtn = document.getElementById('loadVocoderBtn');
       const vocoderModelUrl = document.getElementById('vocoderModelUrl');
 
-      phaseMethodSelect.addEventListener('change', () => {
+      const iterationsLabel = document.getElementById('iterationsLabel');
+
+      function updatePhaseMethodUI() {
+        // Show/hide neural vocoder options
         if (phaseMethodSelect.value === 'neural') {
           neuralOptions.style.display = 'flex';
         } else {
           neuralOptions.style.display = 'none';
         }
-      });
+
+        // Show/hide iterations (only for Griffin-Lim and PGHI approx)
+        const needsIterations = ['griffinlim', 'pghi_like'].includes(phaseMethodSelect.value);
+        if (iterationsLabel) {
+          iterationsLabel.style.display = needsIterations ? '' : 'none';
+        }
+      }
+
+      phaseMethodSelect.addEventListener('change', updatePhaseMethodUI);
+      updatePhaseMethodUI(); // Initial state
 
       // Load model button handler
       if (loadVocoderBtn) {
@@ -1390,10 +1389,17 @@ Fix: Ensure FFT Size & Assumed Duration (sec) is close to original. Unfortunatel
     
     function yieldUI(){ return new Promise(r=>requestAnimationFrame(r)); }
 
+    // Internal normalization factor so Pre-Gain=1.0 produces reasonable output levels.
+    // The iSTFT requires magnitude scaling by N/2 (specScale), which would cause massive
+    // clipping if Pre-Gain were applied directly. This constant absorbs that so users
+    // can think of Pre-Gain as a simple multiplier: 1.0 = baseline, 2.0 = double, etc.
+    const PRE_GAIN_NORMALIZATION = 0.05;
+
     function __getPreGain(){
       const el = document.getElementById('preGainSlider');
       const v = el ? parseFloat(el.value) : 1.0;
-      return Number.isFinite(v) ? v : 1.0;
+      const userGain = Number.isFinite(v) ? v : 1.0;
+      return userGain * PRE_GAIN_NORMALIZATION;
     }
 
     function isPow2(n){ return n>0 && (n & (n-1))===0; }
@@ -1746,19 +1752,23 @@ async function processImage(){
           }
         }
 
-        // Calculate hop - prioritize hop from metadata (exact integer) over pxPerSec (derived float)
+        // Calculate hop - check if user changed duration from metadata, if so use user's duration
         let hop;
         let effPxPerSec;
         let actualDuration;
 
-        // First, check if metadata has hop (most reliable - exact integer used in STFT)
-        if (window.__lastMeta?.hop && Number.isFinite(Number(window.__lastMeta.hop))) {
+        // Check if user has manually changed the duration from what metadata set
+        const metaDuration = window.__lastMeta?.duration_sec || window.__lastMeta?.durationSec || window.__lastMeta?.duration;
+        const userChangedDuration = metaDuration && Math.abs(durationSec - Number(metaDuration)) > 0.001;
+
+        // Use metadata hop only if user hasn't changed the duration
+        if (!userChangedDuration && window.__lastMeta?.hop && Number.isFinite(Number(window.__lastMeta.hop))) {
           hop = Math.max(1, Math.round(Number(window.__lastMeta.hop)));
           effPxPerSec = sampleRate / hop;
           actualDuration = ((cropWidth - 1) * hop + fftSize) / sampleRate;
           log(`Using hop from metadata: ${hop}`);
-        } else if (window.__lastMeta?.px_per_sec || window.__lastMeta?.pxPerSec) {
-          // Fallback to px_per_sec if hop not available
+        } else if (!userChangedDuration && (window.__lastMeta?.px_per_sec || window.__lastMeta?.pxPerSec)) {
+          // Fallback to px_per_sec if hop not available and user hasn't changed duration
           const pxPerSec = Number(window.__lastMeta.px_per_sec || window.__lastMeta.pxPerSec);
           if (Number.isFinite(pxPerSec) && pxPerSec > 0) {
             hop = Math.max(1, Math.round(sampleRate / pxPerSec));
@@ -1768,7 +1778,7 @@ async function processImage(){
           }
         }
 
-        // Fallback to duration-based calculation if no metadata
+        // Use user's duration for hop calculation if no metadata or user changed duration
         if (!hop) {
           // duration = (cols - 1) * hop / sampleRate + fftSize / sampleRate
           // Solving for hop: hop = (duration * sampleRate - fftSize) / (cols - 1)
@@ -1776,6 +1786,9 @@ async function processImage(){
           hop = Math.max(1, Math.round((targetSamples - fftSize) / Math.max(1, cropWidth - 1)));
           effPxPerSec = sampleRate / hop;
           actualDuration = ((cropWidth - 1) * hop + fftSize) / sampleRate;
+          if (userChangedDuration) {
+            log(`User changed duration: using ${durationSec.toFixed(3)}s → hop ${hop}`);
+          }
         }
 
         log(`Target duration: ${durationSec.toFixed(3)}s, Actual: ${actualDuration.toFixed(3)}s`);
@@ -1956,16 +1969,23 @@ async function processImage(){
         };
 
         const rowToBin = new Int32Array(rows);
+
+        // Check if user changed min/max freq from metadata values
+        const metaMinHz = window.__lastMeta?.minHz;
+        const metaMaxHz = window.__lastMeta?.maxHz;
+        const userChangedFreqRange = (metaMinHz && Math.abs(minFreq - Number(metaMinHz)) > 0.1) ||
+                                      (metaMaxHz && Math.abs(maxFreq - Number(metaMaxHz)) > 0.1);
+
         if(!useLog && !useMel && !useBark){
-          // Linear mapping
+          // Linear mapping - interpolate between kMin and kMax
+          // This properly handles user changes to min/max frequency
           for(let y=0;y<rows;y++){
-            if(flipFreq) {
-              rowToBin[y] = kMin + y;
-            } else {
-              rowToBin[y] = kMin + (rows - 1 - y);
-            }
-            if(rowToBin[y] < 1) rowToBin[y] = 1;
-            if(rowToBin[y] >= posBins) rowToBin[y] = posBins - 1;
+            const t = getT(y);  // 0=low freq, 1=high freq (after flip handling)
+            const k = Math.round(kMin + t * (kMax - kMin));
+            rowToBin[y] = Math.max(1, Math.min(posBins - 1, k));
+          }
+          if(userChangedFreqRange) {
+            log(`User changed freq range: mapping ${rows} rows to bins ${kMin}..${kMax}`);
           }
         } else if(useLog) {
           // Logarithmic mapping
@@ -2124,7 +2144,6 @@ async function processImage(){
           log('iSTFT synthesis with coherent phase');
           log(`iSTFT using rows=${rows}, kMin=${kMin}, kMax=${kMax}, hop=${workHop}, fft=${fftSize}`);
           let istftSignal = await istftReconstruct(magsWork, rows, workCols, sampleRate, fftSize, workHop, kMin, kMax, rowToBin, log);
-          log(`Smoother window set to ${document.getElementById('postSmoothMs')?.value||10} ms`);
           await finalizeAudio(istftSignal, sampleRate, effPxPerSec);
           return;
         } else if(phaseMethod === 'griffinlim'){
@@ -2132,19 +2151,16 @@ async function processImage(){
           if(iterations < 8) log('Tip: Griffin-Lim usually needs 12-32 iterations for clear speech.');
           log(`GL using rows=${rows}, kMin=${kMin}, kMax=${kMax}, hop=${workHop}, fft=${fftSize}`);
           let glSignal = await griffinLimReconstruct(magsWork, rows, workCols, sampleRate, fftSize, workHop, kMin, kMax, rowToBin, iterations, log);
-          log(`Smoother window set to ${document.getElementById('postSmoothMs')?.value||10} ms`);
           await finalizeAudio(glSignal, sampleRate, effPxPerSec);
           return;
         } else if(phaseMethod === 'pghi_like'){
           log(`PGHI (approx) with ${iterations} refinements`);
           let pghiSignal = await pghiLikeReconstruct(magsWork, rows, workCols, sampleRate, fftSize, workHop, kMin, kMax, rowToBin, iterations, log);
-          log(`Smoother window set to ${document.getElementById('postSmoothMs')?.value||10} ms`);
           await finalizeAudio(pghiSignal, sampleRate, effPxPerSec);
           return;
         } else if(phaseMethod === 'pghi_true'){
           log(`PGHI (true) reconstruction`);
           let pghiTrueSignal = await truePghiReconstruct(magsWork, rows, workCols, sampleRate, fftSize, workHop, kMin, kMax, rowToBin, iterations, log);
-          log(`Smoother window set to ${document.getElementById('postSmoothMs')?.value||10} ms`);
           await finalizeAudio(pghiTrueSignal, sampleRate, effPxPerSec);
           return;
         } else if(phaseMethod === 'neural'){
@@ -2186,7 +2202,6 @@ async function processImage(){
             }
             if(c%50===0){ log(`Col ${c}/${workCols}`); await yieldUI(); }
           }
-          log(`Smoother window set to ${document.getElementById('postSmoothMs')?.value||10} ms`);
           await finalizeAudio(signal, sampleRate, effPxPerSec);
         }
       };
@@ -2223,34 +2238,6 @@ async function processImage(){
       let peak=0;
       for(let i=0;i<signal.length;i++){ const a = Math.abs(signal[i]); if(a>peak) peak=a; }
       if(peak>1) log(`Warning: peak ${peak.toFixed(3)} > 1.0, WAV will hard-clip. No normalization.`);
-
-      if(document.getElementById('postSmooth').checked){
-        const sr = sampleRate;
-        const msEl = document.getElementById('postSmoothMs');
-        const ms = msEl ? Math.max(1, parseFloat(msEl.value)||10) : 10;
-        const win = Math.max(1, Math.round(sr * (ms/1000)));
-        log(`Applied post-reconstruction smoother (${ms} ms, window=${win} samples, zero-phase boxcar)`);
-        if(win > 1){
-          const n = signal.length;
-          const tmp = new Float32Array(n);
-          let acc = 0;
-          for(let i=0;i<n;i++){
-            acc += signal[i];
-            if(i>=win) acc -= signal[i-win];
-            const denom = (i+1<win) ? (i+1) : win;
-            tmp[i] = acc / denom;
-          }
-          const out = new Float32Array(n);
-          acc = 0;
-          for(let i=n-1, j=0;i>=0;i--, j++){
-            acc += tmp[i];
-            if(j>=win) acc -= tmp[i+win];
-            const denom = (j+1<win) ? (j+1) : win;
-            out[i] = acc / denom;
-          }
-          signal.set(out);
-        }
-      }
 
       // Apply short fade-in/fade-out to prevent click/chirp artifacts
       const fadeMs = 5;
