@@ -544,6 +544,21 @@
       min-width: 120px;
     }
 
+    #flashBtn {
+      min-width: auto;
+      width: 50px;
+      height: 50px;
+      font-size: 20px;
+      border-radius: 50%;
+      padding: 0;
+      transition: background 0.2s, box-shadow 0.2s;
+    }
+
+    #flashBtn.active {
+      background: var(--accent);
+      box-shadow: 0 0 12px var(--accent);
+    }
+
     #captureBtn {
       font-size: 24px;
       padding: 16px 32px;
@@ -1159,6 +1174,7 @@ Fix: Ensure FFT Size & Duration (sec) is close to original. Unfortunately, this 
           <video id="cameraVideo" autoplay playsinline></video>
         </div>
         <div class="camera-controls">
+          <button type="button" id="flashBtn" title="Toggle flash" style="display:none;">🔦</button>
           <button type="button" id="switchCameraBtn" title="Switch camera">🔄</button>
           <button type="button" id="captureBtn" title="Capture frame">📷</button>
         </div>
@@ -4135,12 +4151,14 @@ async function processImage(){
       const cameraVideo = document.getElementById('cameraVideo');
       const captureBtn = document.getElementById('captureBtn');
       const switchCameraBtn = document.getElementById('switchCameraBtn');
+      const flashBtn = document.getElementById('flashBtn');
       const cameraStatus = document.getElementById('cameraStatus');
 
       if(!cameraBtn || !cameraOverlay || !cameraVideo) return;
 
       let currentStream = null;
       let facingMode = 'environment'; // Start with back camera
+      let torchOn = false;
 
       // Check if camera is available
       const hasCamera = navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
@@ -4183,6 +4201,21 @@ async function processImage(){
           await cameraVideo.play();
           cameraStatus.textContent = 'Point camera at spectrogram, then tap capture';
 
+          // Check if torch is supported
+          const track = currentStream.getVideoTracks()[0];
+          if(track){
+            const capabilities = track.getCapabilities ? track.getCapabilities() : {};
+            if(capabilities.torch){
+              flashBtn.style.display = 'inline-flex';
+              // Reset torch state when starting camera
+              torchOn = false;
+              flashBtn.textContent = '🔦';
+              flashBtn.classList.remove('active');
+            } else {
+              flashBtn.style.display = 'none';
+            }
+          }
+
         } catch(err){
           console.error('[camera] Error:', err);
           cameraStatus.textContent = 'Camera access denied or unavailable';
@@ -4207,6 +4240,11 @@ async function processImage(){
         }
         cameraVideo.srcObject = null;
         cameraOverlay.classList.remove('active');
+        // Reset flash button
+        flashBtn.style.display = 'none';
+        torchOn = false;
+        flashBtn.textContent = '🔦';
+        flashBtn.classList.remove('active');
       }
 
       // Capture frame from video
@@ -4250,6 +4288,32 @@ async function processImage(){
         await startCamera();
       }
 
+      // Toggle flash/torch
+      async function toggleFlash(){
+        if(!currentStream) return;
+        const track = currentStream.getVideoTracks()[0];
+        if(!track) return;
+
+        try {
+          torchOn = !torchOn;
+          await track.applyConstraints({
+            advanced: [{ torch: torchOn }]
+          });
+          flashBtn.textContent = torchOn ? '💡' : '🔦';
+          flashBtn.classList.toggle('active', torchOn);
+          cameraStatus.textContent = torchOn ? 'Flash ON' : 'Flash OFF';
+          // Reset status message after a moment
+          setTimeout(() => {
+            if(cameraOverlay.classList.contains('active')){
+              cameraStatus.textContent = 'Point camera at spectrogram, then tap capture';
+            }
+          }, 1500);
+        } catch(err){
+          console.error('[camera] Torch error:', err);
+          cameraStatus.textContent = 'Flash not available';
+        }
+      }
+
       // Event listeners
       cameraBtn.addEventListener('click', () => {
         cameraOverlay.classList.add('active');
@@ -4259,6 +4323,7 @@ async function processImage(){
       cameraClose.addEventListener('click', stopCamera);
       captureBtn.addEventListener('click', captureFrame);
       switchCameraBtn.addEventListener('click', switchCamera);
+      flashBtn.addEventListener('click', toggleFlash);
 
       // Close on escape key
       document.addEventListener('keydown', (ev) => {
