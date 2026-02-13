@@ -492,6 +492,218 @@
       box-shadow: none;
     }
 
+    /* Camera button - compact style next to file input */
+    .camera-btn {
+      padding: 6px 10px;
+      font-size: 16px;
+      min-width: auto;
+      vertical-align: middle;
+      margin-left: 8px;
+    }
+
+    /* Camera modal overlay */
+    .camera-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.9);
+      z-index: 10000;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .camera-overlay.active {
+      display: flex;
+    }
+
+    .camera-container {
+      position: relative;
+      max-width: 90vw;
+      max-height: 70vh;
+    }
+
+    #cameraVideo {
+      max-width: 90vw;
+      max-height: 70vh;
+      border-radius: 8px;
+      background: #000;
+    }
+
+    .camera-controls {
+      display: flex;
+      gap: 16px;
+      margin-top: 20px;
+      align-items: center;
+    }
+
+    .camera-controls button {
+      min-width: 120px;
+    }
+
+    #captureBtn {
+      font-size: 24px;
+      padding: 16px 32px;
+      border-radius: 50%;
+      min-width: auto;
+      width: 70px;
+      height: 70px;
+    }
+
+    .camera-close {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: rgba(0, 0, 0, 0.6);
+      color: var(--text);
+      border: 1px solid var(--border);
+      font-size: 24px;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      cursor: pointer;
+      z-index: 10001;
+    }
+
+    .camera-close:hover {
+      background: rgba(31, 201, 170, 0.3);
+    }
+
+    .camera-status {
+      color: var(--dim);
+      font-size: 14px;
+      margin-top: 12px;
+      text-align: center;
+    }
+
+    .camera-status.error {
+      color: #ff6b6b;
+    }
+
+    /* Image Adjustments Panel */
+    .adjust-panel {
+      display: none;
+      margin: 12px auto;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      max-width: 400px;
+    }
+
+    .adjust-panel.visible {
+      display: block;
+    }
+
+    .adjust-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 14px;
+      cursor: pointer;
+      background: rgba(31, 201, 170, 0.05);
+      border-bottom: 1px solid var(--border);
+      user-select: none;
+    }
+
+    .adjust-header:hover {
+      background: rgba(31, 201, 170, 0.1);
+    }
+
+    .adjust-toggle {
+      color: var(--dim);
+      transition: transform 0.2s;
+    }
+
+    .adjust-panel.collapsed .adjust-toggle {
+      transform: rotate(-90deg);
+    }
+
+    .adjust-panel.collapsed .adjust-content {
+      display: none;
+    }
+
+    .adjust-content {
+      padding: 14px;
+    }
+
+    .adjust-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .adjust-row label {
+      width: 90px;
+      font-size: 13px;
+      color: var(--dim);
+    }
+
+    .adjust-row input[type="range"] {
+      flex: 1;
+      height: 6px;
+      background: var(--border);
+      border-radius: 3px;
+      cursor: pointer;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    .adjust-row input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      background: var(--accent);
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    }
+
+    .adjust-row input[type="range"]::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      background: var(--accent);
+      border-radius: 50%;
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    }
+
+    .adjust-value {
+      width: 36px;
+      text-align: right;
+      font-size: 12px;
+      color: var(--text);
+      font-family: monospace;
+    }
+
+    .adjust-section-label {
+      font-size: 11px;
+      color: var(--dim);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin: 14px 0 8px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+    }
+
+    .adjust-buttons {
+      display: flex;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .adjust-buttons button {
+      flex: 1;
+      padding: 8px 12px;
+      font-size: 13px;
+      min-width: auto;
+    }
+
     /* Special styling for primary action buttons */
     #invertBtn,
     #downloadBtn {
@@ -794,10 +1006,88 @@
 
       <div style="margin: 10px 0;">
         <input type="file" id="imageInput" accept="image/png,image/jpeg,image/jpg,image/webp,image/*">
+        <button type="button" id="cameraBtn" class="camera-btn" title="Capture from camera">📷</button>
         <span style="color: var(--dim); font-size: 13px; font-style: italic;">or Ctrl+V to paste</span>
       </div>
       <!-- Thumbnail preview for quick reference -->
       <canvas id="thumbnail" class="thumbnail-preview"></canvas>
+
+      <!-- Image Adjustments Panel -->
+      <div class="adjust-panel" id="adjustPanel">
+        <div class="adjust-header" id="adjustHeader">
+          <span>Image Adjustments</span>
+          <span class="adjust-toggle">▼</span>
+        </div>
+        <div class="adjust-content" id="adjustContent">
+          <div class="adjust-row">
+            <label>Brightness</label>
+            <input type="range" id="adjustBrightness" min="-100" max="100" value="0">
+            <span class="adjust-value" id="adjustBrightnessVal">0</span>
+          </div>
+          <div class="adjust-row">
+            <label>Contrast</label>
+            <input type="range" id="adjustContrast" min="-100" max="100" value="0">
+            <span class="adjust-value" id="adjustContrastVal">0</span>
+          </div>
+          <div class="adjust-row">
+            <label>Temperature</label>
+            <input type="range" id="adjustTemperature" min="-100" max="100" value="0">
+            <span class="adjust-value" id="adjustTemperatureVal">0</span>
+          </div>
+          <div class="adjust-row">
+            <label>Lens</label>
+            <input type="range" id="adjustLens" min="-50" max="50" value="0" step="1">
+            <span class="adjust-value" id="adjustLensVal">0</span>
+          </div>
+          <div class="adjust-row">
+            <label>Rotation</label>
+            <input type="range" id="adjustRotation" min="-30" max="30" value="0" step="0.1">
+            <span class="adjust-value" id="adjustRotationVal">0°</span>
+          </div>
+          <div class="adjust-row">
+            <label>Keystone V</label>
+            <input type="range" id="keystoneV" min="-50" max="50" value="0" step="1">
+            <span class="adjust-value" id="keystoneVVal">0</span>
+          </div>
+          <div class="adjust-row">
+            <label>Keystone H</label>
+            <input type="range" id="keystoneH" min="-50" max="50" value="0" step="1">
+            <span class="adjust-value" id="keystoneHVal">0</span>
+          </div>
+          <div class="adjust-section-label">Crop</div>
+          <div class="adjust-row">
+            <label>Left</label>
+            <input type="range" id="cropLeft" min="0" max="50" value="0" step="0.5">
+            <span class="adjust-value" id="cropLeftVal">0%</span>
+          </div>
+          <div class="adjust-row">
+            <label>Right</label>
+            <input type="range" id="cropRight" min="0" max="50" value="0" step="0.5">
+            <span class="adjust-value" id="cropRightVal">0%</span>
+          </div>
+          <div class="adjust-row">
+            <label>Top</label>
+            <input type="range" id="cropTop" min="0" max="50" value="0" step="0.5">
+            <span class="adjust-value" id="cropTopVal">0%</span>
+          </div>
+          <div class="adjust-row">
+            <label>Bottom</label>
+            <input type="range" id="cropBottom" min="0" max="50" value="0" step="0.5">
+            <span class="adjust-value" id="cropBottomVal">0%</span>
+          </div>
+          <div class="adjust-buttons">
+            <button type="button" id="adjustGrayscaleBtn">Grayscale</button>
+            <button type="button" id="adjustVistaBtn">Vista</button>
+          </div>
+          <div class="adjust-buttons">
+            <button type="button" id="adjustAutoBtn">Auto Levels</button>
+            <button type="button" id="adjustResetBtn">Reset</button>
+          </div>
+          <div class="adjust-buttons" style="margin-top: 16px; border-top: 1px solid var(--border); padding-top: 14px;">
+            <button type="button" id="adjustSaveBtn">Save Adjusted Image</button>
+          </div>
+        </div>
+      </div>
 
       <!-- Tip Modal -->
       <div class="tip-overlay" id="tipOverlay"></div>
@@ -860,6 +1150,19 @@ Likely cause: Phase propagation struggling due to abrupt changes.
 Fix: Ensure FFT Size & Duration (sec) is close to original. Unfortunately, this is the main symptom of phase reconstruction and can't be entirely removed.</li>
 </ol>
         </pre>
+      </div>
+
+      <!-- Camera Capture Modal -->
+      <div class="camera-overlay" id="cameraOverlay">
+        <button class="camera-close" id="cameraClose" title="Close camera">&times;</button>
+        <div class="camera-container">
+          <video id="cameraVideo" autoplay playsinline></video>
+        </div>
+        <div class="camera-controls">
+          <button type="button" id="switchCameraBtn" title="Switch camera">🔄</button>
+          <button type="button" id="captureBtn" title="Capture frame">📷</button>
+        </div>
+        <div class="camera-status" id="cameraStatus">Initializing camera...</div>
       </div>
 
       <div class="row">
@@ -1084,13 +1387,13 @@ Fix: Ensure FFT Size & Duration (sec) is close to original. Unfortunately, this 
           neuralOptions.style.display = 'none';
         }
 
-        // Show/hide iterations and mag strictness (only for Griffin-Lim)
-        const isGriffinLim = phaseMethodSelect.value === 'griffinlim';
+        // Show/hide iterations and mag strictness (for GL-based methods)
+        const usesGL = phaseMethodSelect.value === 'griffinlim';
         if (iterationsLabel) {
-          iterationsLabel.style.display = isGriffinLim ? '' : 'none';
+          iterationsLabel.style.display = usesGL ? '' : 'none';
         }
         if (magStrictnessLabel) {
-          magStrictnessLabel.style.display = isGriffinLim ? '' : 'none';
+          magStrictnessLabel.style.display = usesGL ? '' : 'none';
         }
       }
 
@@ -3295,7 +3598,13 @@ async function processImage(){
       // Reference: Perraudin et al., "A fast Griffin-Lim algorithm" (2013)
       const momentum = 0.99; // Momentum coefficient (0.99 is typical)
       let prevSignal = null;
+      let prevRms = Infinity;
+      const earlyStopThreshold = 0.001; // Stop when RMS change < 0.1%
       logFn && logFn('Starting Fast Griffin-Lim (FGLA) with momentum');
+
+      // Get magnitude strictness (100 = exact match, lower = softer constraint)
+      const strictnessEl = document.getElementById('magStrictness');
+      const strictness = strictnessEl ? Number(strictnessEl.value) / 100 : 1.0;
 
       for(let it=0; it<iters; it++){
         if(anyBad(signal)) warnNaNs('Griffin-Lim iteration '+(it+1), 'Signal contains invalid numbers');
@@ -3310,10 +3619,6 @@ async function processImage(){
         }
 
         const ana = stft(workSignal, N, hop);
-
-        // Get magnitude strictness (100 = exact match, lower = softer constraint)
-        const strictnessEl = document.getElementById('magStrictness');
-        const strictness = strictnessEl ? Number(strictnessEl.value) / 100 : 1.0;
 
         // Standard Griffin-Lim projection: extract phase, apply target magnitude
         for(let c=0;c<frames;c++){
@@ -3343,9 +3648,214 @@ async function processImage(){
         let rms=0;
         for(let i=0;i<signal.length;i++){ const s=signal[i]; rms+=s*s; }
         rms=Math.sqrt(rms/Math.max(1,signal.length));
-        logFn && logFn(`GL RMS after iter ${it+1}: ${rms.toFixed(4)}`);
-        if(it%2===0){ logFn && logFn(`Griffin-Lim iter ${it+1}/${iters}`); await yieldUI(); }
+
+        // Early stopping: check if RMS change is below threshold
+        const rmsChange = Math.abs(rms - prevRms) / Math.max(prevRms, 1e-10);
+        if(it%2===0){ logFn && logFn(`Griffin-Lim iter ${it+1}/${iters} (RMS: ${rms.toFixed(4)}, Δ: ${(rmsChange*100).toFixed(2)}%)`); await yieldUI(); }
+
+        if(it >= 3 && rmsChange < earlyStopThreshold){
+          logFn && logFn(`Early stop at iter ${it+1}: converged (Δ ${(rmsChange*100).toFixed(3)}% < ${earlyStopThreshold*100}%)`);
+          break;
+        }
+        prevRms = rms;
       }
+      return signal;
+    }
+
+    /**
+     * Hybrid PGHI + Griffin-Lim reconstruction
+     * Uses PGHI for initial phase estimation, then refines with GL iterations
+     */
+    async function pghiGLHybridReconstruct(magRowsCols, rows, cols, fs, N, hop, kMin, kMax, rowToBin, iters, logFn){
+      const preGain = __getPreGain();
+      const posBins = Math.floor(N/2);
+      const frames = cols;
+
+      // Build target magnitude array (same as GL)
+      const target = new Array(frames);
+      logFn && logFn(`Hybrid: building target magnitudes...`);
+      for(let c=0;c<frames;c++){
+        let maxA = 0;
+        const mag = new Float32Array(posBins);
+        for(let y=0;y<rows;y++){
+          const k = rowToBin[y];
+          if(k>=0 && k<posBins){
+            const a = magRowsCols[y*cols + c];
+            if(a>mag[k]) mag[k]=a;
+            if(a>maxA) maxA=a;
+          }
+        }
+        // Apply noise floor (matching Griffin-Lim)
+        const floorA = maxA * 1e-4;
+        for(let k=0;k<posBins;k++){ if(mag[k] < floorA) mag[k] = 0; }
+        const specScale = N / 2;
+        for(let k=0;k<posBins;k++){ mag[k] *= specScale; mag[k] *= preGain; }
+        target[c]=mag;
+      }
+
+      // === PGHI Phase Estimation ===
+      logFn && logFn(`Hybrid: PGHI phase estimation...`);
+      await new Promise(r=>requestAnimationFrame(r));
+
+      const logMag = new Float32Array(rows*cols);
+      for(let i=0;i<magRowsCols.length;i++) logMag[i] = Math.log(magRowsCols[i] + 1e-9);
+
+      const dT = new Float32Array(rows*cols);
+      const dF = new Float32Array(rows*cols);
+      for(let y=0;y<rows;y++){
+        for(let x=1;x<cols-1;x++){
+          const idx = y*cols + x;
+          dT[idx] = (logMag[y*cols + x+1] - logMag[y*cols + x-1]) * 0.5;
+        }
+      }
+      for(let x=0;x<cols;x++){
+        for(let y=1;y<rows-1;y++){
+          const idx = y*cols + x;
+          dF[idx] = (logMag[(y+1)*cols + x] - logMag[(y-1)*cols + x]) * 0.5;
+        }
+      }
+
+      const dPhiT = new Float32Array(rows*cols);
+      const dPhiF = new Float32Array(rows*cols);
+      const twoPi = 2 * Math.PI;
+      const gamma = (N * hop) / (8 * Math.log(2));
+      const scaleT = gamma / (N * N);
+      const scaleF = 1 / gamma;
+      for(let y = 0; y < rows; y++){
+        for(let x = 0; x < cols; x++){
+          const idx = y * cols + x;
+          dPhiT[idx] = scaleT * dF[idx];
+          dPhiF[idx] = scaleF * dT[idx];
+        }
+      }
+
+      // Heap-based phase propagation
+      const phase = new Float32Array(rows*cols).fill(NaN);
+      const visited = new Uint8Array(rows*cols);
+      const heap = new MaxHeap();
+
+      let seedIdx = 0, maxMag = 0;
+      for(let i=0; i<magRowsCols.length; i++){
+        if(magRowsCols[i] > maxMag){ maxMag = magRowsCols[i]; seedIdx = i; }
+      }
+
+      phase[seedIdx] = 0;
+      visited[seedIdx] = 1;
+      heap.push(magRowsCols[seedIdx], seedIdx);
+
+      while(heap.length > 0){
+        const entry = heap.pop();
+        if(!entry) break;
+        const [magVal, idx] = entry;
+        const y = Math.floor(idx / cols);
+        const x = idx - y * cols;
+        const k = rowToBin[y];
+        const carrier = twoPi * k * hop / N;
+
+        if(x + 1 < cols && !visited[idx + 1]){
+          phase[idx + 1] = phase[idx] + carrier + dPhiT[idx];
+          visited[idx + 1] = 1;
+          heap.push(magRowsCols[idx + 1], idx + 1);
+        }
+        if(x > 0 && !visited[idx - 1]){
+          phase[idx - 1] = phase[idx] - carrier - dPhiT[idx];
+          visited[idx - 1] = 1;
+          heap.push(magRowsCols[idx - 1], idx - 1);
+        }
+        if(y + 1 < rows && !visited[idx + cols]){
+          phase[idx + cols] = phase[idx] + dPhiF[idx];
+          visited[idx + cols] = 1;
+          heap.push(magRowsCols[idx + cols], idx + cols);
+        }
+        if(y > 0 && !visited[idx - cols]){
+          phase[idx - cols] = phase[idx] - dPhiF[idx];
+          visited[idx - cols] = 1;
+          heap.push(magRowsCols[idx - cols], idx - cols);
+        }
+      }
+
+      // Build initial spectrum using PGHI phase
+      logFn && logFn(`Hybrid: building initial spectrum from PGHI phase...`);
+      const spec = new Array(frames);
+      for(let c=0;c<frames;c++){
+        const re = new Float32Array(N);
+        const im = new Float32Array(N);
+        for(let y=0;y<rows;y++){
+          const k = rowToBin[y];
+          if(k<=0 || k>=posBins) continue;
+          const idx = y*cols + c;
+          const a = target[c][k];
+          const ph = isNaN(phase[idx]) ? 0 : phase[idx];
+          if(a > 0){
+            re[k] = a*Math.cos(ph);
+            im[k] = a*Math.sin(ph);
+          }
+        }
+        im[0]=0; re[posBins]=0; im[posBins]=0;
+        for(let k=1;k<posBins;k++){ re[N-k]=re[k]; im[N-k]=-im[k]; }
+        spec[c] = {re, im};
+      }
+
+      const outLen = hop*(frames - 1) + N;
+      let signal = istft({spec, fftSize: N}, hop, outLen);
+
+      // === Griffin-Lim Refinement ===
+      logFn && logFn(`Hybrid: starting GL refinement (${iters} iterations max)...`);
+      const momentum = 0.99;
+      let prevSignal = null;
+      let prevRms = Infinity;
+      const earlyStopThreshold = 0.001;
+
+      const strictnessEl = document.getElementById('magStrictness');
+      const strictness = strictnessEl ? Number(strictnessEl.value) / 100 : 1.0;
+
+      for(let it=0; it<iters; it++){
+        let workSignal = signal;
+        if(prevSignal && momentum > 0){
+          workSignal = new Float32Array(signal.length);
+          for(let i=0; i<signal.length; i++){
+            workSignal[i] = signal[i] + momentum * (signal[i] - prevSignal[i]);
+          }
+        }
+
+        const ana = stft(workSignal, N, hop);
+
+        for(let c=0;c<frames;c++){
+          const re=ana.spec[c].re, im=ana.spec[c].im;
+          for(let k=0;k<posBins;k++){
+            const ph = Math.atan2(im[k], re[k]);
+            const currentMag = Math.sqrt(re[k]*re[k] + im[k]*im[k]);
+            const a = strictness * target[c][k] + (1 - strictness) * currentMag;
+            re[k]=a*Math.cos(ph);
+            im[k]=a*Math.sin(ph);
+          }
+          for(let k=1;k<posBins;k++){
+            ana.spec[c].re[N-k]=ana.spec[c].re[k];
+            ana.spec[c].im[N-k]=-ana.spec[c].im[k];
+          }
+          ana.spec[c].im[0]=0;
+          ana.spec[c].re[posBins]=0;
+          ana.spec[c].im[posBins]=0;
+        }
+
+        prevSignal = signal;
+        signal = istft({spec: ana.spec, fftSize: N}, hop, outLen);
+
+        let rms=0;
+        for(let i=0;i<signal.length;i++){ const s=signal[i]; rms+=s*s; }
+        rms=Math.sqrt(rms/Math.max(1,signal.length));
+
+        const rmsChange = Math.abs(rms - prevRms) / Math.max(prevRms, 1e-10);
+        if(it%2===0){ logFn && logFn(`Hybrid GL iter ${it+1}/${iters} (RMS: ${rms.toFixed(4)}, Δ: ${(rmsChange*100).toFixed(2)}%)`); await yieldUI(); }
+
+        if(it >= 3 && rmsChange < earlyStopThreshold){
+          logFn && logFn(`Hybrid early stop at iter ${it+1}: converged`);
+          break;
+        }
+        prevRms = rms;
+      }
+
+      logFn && logFn(`Hybrid reconstruction complete`);
       return signal;
     }
 
@@ -3505,6 +4015,9 @@ async function processImage(){
           // Update thumbnail and scale canvas display
           updateThumbnail();
           scaleCanvasDisplay();
+
+          // Store original for adjustments
+          if(window.storeOriginalImage) window.storeOriginalImage();
         } finally {
           URL.revokeObjectURL(url);
         }
@@ -3568,6 +4081,9 @@ async function processImage(){
           updateThumbnail();
           scaleCanvasDisplay();
 
+          // Store original for adjustments
+          if(window.storeOriginalImage) window.storeOriginalImage();
+
           log('Image pasted from clipboard');
 
           // Try to read metadata from pasted PNG
@@ -3610,7 +4126,626 @@ async function processImage(){
       
       log('Paste functionality enabled - press Ctrl+V (or Cmd+V) to paste images');
     })();
-    
+
+    // Camera capture functionality
+    (function(){
+      const cameraBtn = document.getElementById('cameraBtn');
+      const cameraOverlay = document.getElementById('cameraOverlay');
+      const cameraClose = document.getElementById('cameraClose');
+      const cameraVideo = document.getElementById('cameraVideo');
+      const captureBtn = document.getElementById('captureBtn');
+      const switchCameraBtn = document.getElementById('switchCameraBtn');
+      const cameraStatus = document.getElementById('cameraStatus');
+
+      if(!cameraBtn || !cameraOverlay || !cameraVideo) return;
+
+      let currentStream = null;
+      let facingMode = 'environment'; // Start with back camera
+
+      // Check if camera is available
+      const hasCamera = navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
+
+      if(!hasCamera){
+        cameraBtn.style.display = 'none';
+        console.log('[camera] MediaDevices API not available');
+        return;
+      }
+
+      // Start camera
+      async function startCamera(){
+        try {
+          // Stop existing stream if any
+          if(currentStream){
+            currentStream.getTracks().forEach(track => track.stop());
+          }
+
+          cameraStatus.textContent = 'Accessing camera...';
+          cameraStatus.classList.remove('error');
+
+          const constraints = {
+            video: {
+              facingMode: facingMode,
+              width: { ideal: 1920 },
+              height: { ideal: 1080 }
+            }
+          };
+
+          currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+          cameraVideo.srcObject = currentStream;
+
+          // Wait for video to be ready
+          await new Promise((resolve, reject) => {
+            cameraVideo.onloadedmetadata = resolve;
+            cameraVideo.onerror = reject;
+            setTimeout(() => reject(new Error('Video timeout')), 5000);
+          });
+
+          await cameraVideo.play();
+          cameraStatus.textContent = 'Point camera at spectrogram, then tap capture';
+
+        } catch(err){
+          console.error('[camera] Error:', err);
+          cameraStatus.textContent = 'Camera access denied or unavailable';
+          cameraStatus.classList.add('error');
+
+          // Provide more specific error messages
+          if(err.name === 'NotAllowedError'){
+            cameraStatus.textContent = 'Camera permission denied. Please allow camera access.';
+          } else if(err.name === 'NotFoundError'){
+            cameraStatus.textContent = 'No camera found on this device.';
+          } else if(err.name === 'NotReadableError'){
+            cameraStatus.textContent = 'Camera is in use by another application.';
+          }
+        }
+      }
+
+      // Stop camera
+      function stopCamera(){
+        if(currentStream){
+          currentStream.getTracks().forEach(track => track.stop());
+          currentStream = null;
+        }
+        cameraVideo.srcObject = null;
+        cameraOverlay.classList.remove('active');
+      }
+
+      // Capture frame from video
+      function captureFrame(){
+        if(!cameraVideo.videoWidth || !cameraVideo.videoHeight){
+          cameraStatus.textContent = 'Camera not ready yet...';
+          return;
+        }
+
+        // Reset metadata flag
+        window.__metadataAlreadyApplied = false;
+        window.__lastMeta = null;
+
+        // Clear file input
+        const fileInput = document.getElementById('imageInput');
+        if(fileInput) fileInput.value = '';
+
+        // Draw video frame to canvas
+        canvas.width = cameraVideo.videoWidth;
+        canvas.height = cameraVideo.videoHeight;
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(cameraVideo, 0, 0);
+
+        // Update thumbnail and scale
+        updateThumbnail();
+        scaleCanvasDisplay();
+
+        // Store original for adjustments
+        if(window.storeOriginalImage) window.storeOriginalImage();
+
+        // Close camera and stop stream
+        stopCamera();
+
+        log('Captured frame from camera (' + canvas.width + 'x' + canvas.height + ')');
+      }
+
+      // Switch between front and back camera
+      async function switchCamera(){
+        facingMode = facingMode === 'environment' ? 'user' : 'environment';
+        cameraStatus.textContent = 'Switching camera...';
+        await startCamera();
+      }
+
+      // Event listeners
+      cameraBtn.addEventListener('click', () => {
+        cameraOverlay.classList.add('active');
+        startCamera();
+      });
+
+      cameraClose.addEventListener('click', stopCamera);
+      captureBtn.addEventListener('click', captureFrame);
+      switchCameraBtn.addEventListener('click', switchCamera);
+
+      // Close on escape key
+      document.addEventListener('keydown', (ev) => {
+        if(ev.key === 'Escape' && cameraOverlay.classList.contains('active')){
+          stopCamera();
+        }
+      });
+
+      // Close on overlay click (outside video)
+      cameraOverlay.addEventListener('click', (ev) => {
+        if(ev.target === cameraOverlay){
+          stopCamera();
+        }
+      });
+
+      log('Camera capture enabled');
+    })();
+
+    // Image adjustment functionality
+    (function(){
+      const adjustPanel = document.getElementById('adjustPanel');
+      const adjustHeader = document.getElementById('adjustHeader');
+
+      // Color sliders
+      const brightnessSlider = document.getElementById('adjustBrightness');
+      const contrastSlider = document.getElementById('adjustContrast');
+      const temperatureSlider = document.getElementById('adjustTemperature');
+      const brightnessVal = document.getElementById('adjustBrightnessVal');
+      const contrastVal = document.getElementById('adjustContrastVal');
+      const temperatureVal = document.getElementById('adjustTemperatureVal');
+
+      // Lens, rotation, and keystone sliders
+      const lensSlider = document.getElementById('adjustLens');
+      const lensVal = document.getElementById('adjustLensVal');
+      const rotationSlider = document.getElementById('adjustRotation');
+      const rotationVal = document.getElementById('adjustRotationVal');
+      const keystoneVSlider = document.getElementById('keystoneV');
+      const keystoneHSlider = document.getElementById('keystoneH');
+      const keystoneVVal = document.getElementById('keystoneVVal');
+      const keystoneHVal = document.getElementById('keystoneHVal');
+
+      // Crop sliders
+      const cropLeftSlider = document.getElementById('cropLeft');
+      const cropRightSlider = document.getElementById('cropRight');
+      const cropTopSlider = document.getElementById('cropTop');
+      const cropBottomSlider = document.getElementById('cropBottom');
+      const cropLeftVal = document.getElementById('cropLeftVal');
+      const cropRightVal = document.getElementById('cropRightVal');
+      const cropTopVal = document.getElementById('cropTopVal');
+      const cropBottomVal = document.getElementById('cropBottomVal');
+
+      // Buttons
+      const autoBtn = document.getElementById('adjustAutoBtn');
+      const resetBtn = document.getElementById('adjustResetBtn');
+      const grayscaleBtn = document.getElementById('adjustGrayscaleBtn');
+      const vistaBtn = document.getElementById('adjustVistaBtn');
+      const saveBtn = document.getElementById('adjustSaveBtn');
+
+      if(!adjustPanel || !brightnessSlider) return;
+
+      // Store original image as an Image element for transforms
+      let originalImage = null;
+      let isGrayscale = false;
+
+      // Start collapsed by default
+      adjustPanel.classList.add('collapsed');
+
+      // Toggle panel collapse
+      adjustHeader.addEventListener('click', () => {
+        adjustPanel.classList.toggle('collapsed');
+      });
+
+      // Store original image when canvas is updated
+      window.storeOriginalImage = function(){
+        if(canvas.width > 0 && canvas.height > 0){
+          // Store as image for geometric transforms
+          originalImage = new Image();
+          originalImage.onload = function(){
+            adjustPanel.classList.add('visible');
+            resetAdjustments();
+          };
+          originalImage.src = canvas.toDataURL();
+        }
+      };
+
+      // Reset all adjustments to defaults
+      function resetAdjustments(){
+        brightnessSlider.value = 0;
+        contrastSlider.value = 0;
+        temperatureSlider.value = 0;
+        lensSlider.value = 0;
+        rotationSlider.value = 0;
+        keystoneVSlider.value = 0;
+        keystoneHSlider.value = 0;
+        cropLeftSlider.value = 0;
+        cropRightSlider.value = 0;
+        cropTopSlider.value = 0;
+        cropBottomSlider.value = 0;
+        isGrayscale = false;
+        grayscaleBtn.style.background = '';
+        updateValueDisplays();
+        if(originalImage && originalImage.complete){
+          canvas.width = originalImage.naturalWidth;
+          canvas.height = originalImage.naturalHeight;
+          ctx.drawImage(originalImage, 0, 0);
+          updateThumbnail();
+          scaleCanvasDisplay();
+        }
+      }
+
+      // Update value displays
+      function updateValueDisplays(){
+        brightnessVal.textContent = brightnessSlider.value;
+        contrastVal.textContent = contrastSlider.value;
+        temperatureVal.textContent = temperatureSlider.value;
+        lensVal.textContent = lensSlider.value;
+        rotationVal.textContent = rotationSlider.value + '°';
+        keystoneVVal.textContent = keystoneVSlider.value;
+        keystoneHVal.textContent = keystoneHSlider.value;
+        cropLeftVal.textContent = cropLeftSlider.value + '%';
+        cropRightVal.textContent = cropRightSlider.value + '%';
+        cropTopVal.textContent = cropTopSlider.value + '%';
+        cropBottomVal.textContent = cropBottomSlider.value + '%';
+      }
+
+      // Apply all adjustments (lens → rotation → keystone → crop → color)
+      function applyAdjustments(){
+        if(!originalImage || !originalImage.complete) return;
+
+        const brightness = parseInt(brightnessSlider.value);
+        const contrast = parseInt(contrastSlider.value);
+        const temperature = parseInt(temperatureSlider.value);
+        const lens = parseInt(lensSlider.value);
+        const rotation = parseFloat(rotationSlider.value);
+        const keystoneV = parseInt(keystoneVSlider.value);
+        const keystoneH = parseInt(keystoneHSlider.value);
+        const cropLeft = parseFloat(cropLeftSlider.value) / 100;
+        const cropRight = parseFloat(cropRightSlider.value) / 100;
+        const cropTop = parseFloat(cropTopSlider.value) / 100;
+        const cropBottom = parseFloat(cropBottomSlider.value) / 100;
+
+        const origW = originalImage.naturalWidth;
+        const origH = originalImage.naturalHeight;
+
+        // Step 1: Apply barrel/pincushion lens correction (centered on original image)
+        let sourceCanvas;
+        if(lens !== 0){
+          const lensCanvas = document.createElement('canvas');
+          lensCanvas.width = origW;
+          lensCanvas.height = origH;
+          const lensCtx = lensCanvas.getContext('2d');
+
+          // Draw original to get pixel data
+          const tempCanvas = document.createElement('canvas');
+          tempCanvas.width = origW;
+          tempCanvas.height = origH;
+          const tempCtx = tempCanvas.getContext('2d');
+          tempCtx.drawImage(originalImage, 0, 0);
+          const srcData = tempCtx.getImageData(0, 0, origW, origH);
+          const dstData = lensCtx.createImageData(origW, origH);
+
+          const centerX = origW / 2;
+          const centerY = origH / 2;
+          const maxRadius = Math.sqrt(centerX * centerX + centerY * centerY);
+          // Strength: negative corrects barrel (fisheye), positive corrects pincushion
+          const strength = lens / 100;
+
+          for(let y = 0; y < origH; y++){
+            for(let x = 0; x < origW; x++){
+              // Distance from center (normalized)
+              const dx = (x - centerX) / maxRadius;
+              const dy = (y - centerY) / maxRadius;
+              const r = Math.sqrt(dx * dx + dy * dy);
+
+              // Apply radial distortion correction
+              // r_src = r_dst * (1 + k * r_dst^2)
+              const rCorrected = r * (1 + strength * r * r);
+
+              // Map back to source coordinates
+              const srcX = centerX + (dx / (r || 1)) * rCorrected * maxRadius;
+              const srcY = centerY + (dy / (r || 1)) * rCorrected * maxRadius;
+
+              // Bilinear interpolation
+              const x0 = Math.floor(srcX);
+              const y0 = Math.floor(srcY);
+              const x1 = x0 + 1;
+              const y1 = y0 + 1;
+              const xFrac = srcX - x0;
+              const yFrac = srcY - y0;
+
+              const dstIdx = (y * origW + x) * 4;
+
+              if(x0 >= 0 && x1 < origW && y0 >= 0 && y1 < origH){
+                const idx00 = (y0 * origW + x0) * 4;
+                const idx10 = (y0 * origW + x1) * 4;
+                const idx01 = (y1 * origW + x0) * 4;
+                const idx11 = (y1 * origW + x1) * 4;
+
+                for(let c = 0; c < 4; c++){
+                  const v00 = srcData.data[idx00 + c];
+                  const v10 = srcData.data[idx10 + c];
+                  const v01 = srcData.data[idx01 + c];
+                  const v11 = srcData.data[idx11 + c];
+
+                  const top = v00 + (v10 - v00) * xFrac;
+                  const bottom = v01 + (v11 - v01) * xFrac;
+                  dstData.data[dstIdx + c] = top + (bottom - top) * yFrac;
+                }
+              } else {
+                // Outside bounds - transparent
+                dstData.data[dstIdx + 3] = 0;
+              }
+            }
+          }
+
+          lensCtx.putImageData(dstData, 0, 0);
+          sourceCanvas = lensCanvas;
+        } else {
+          // No lens correction - use original directly
+          sourceCanvas = document.createElement('canvas');
+          sourceCanvas.width = origW;
+          sourceCanvas.height = origH;
+          const sourceCtx = sourceCanvas.getContext('2d');
+          sourceCtx.drawImage(originalImage, 0, 0);
+        }
+
+        // Step 2: Apply rotation
+        const radians = rotation * Math.PI / 180;
+        const cos = Math.abs(Math.cos(radians));
+        const sin = Math.abs(Math.sin(radians));
+        const rotW = Math.ceil(origW * cos + origH * sin);
+        const rotH = Math.ceil(origH * cos + origW * sin);
+
+        const rotCanvas = document.createElement('canvas');
+        rotCanvas.width = rotW;
+        rotCanvas.height = rotH;
+        const rotCtx = rotCanvas.getContext('2d');
+        rotCtx.imageSmoothingEnabled = true;
+        rotCtx.imageSmoothingQuality = 'high';
+        rotCtx.save();
+        rotCtx.translate(rotW / 2, rotH / 2);
+        rotCtx.rotate(radians);
+        rotCtx.drawImage(sourceCanvas, -origW / 2, -origH / 2);
+        rotCtx.restore();
+
+        // Step 2: Apply keystone (trapezoidal) correction
+        // keystoneV: negative = top narrower, positive = top wider
+        // keystoneH: negative = left narrower, positive = left wider
+        let warpedCanvas = rotCanvas;
+        let warpedW = rotW;
+        let warpedH = rotH;
+
+        if(keystoneV !== 0 || keystoneH !== 0){
+          warpedCanvas = document.createElement('canvas');
+          warpedCanvas.width = rotW;
+          warpedCanvas.height = rotH;
+          const warpCtx = warpedCanvas.getContext('2d');
+          warpCtx.imageSmoothingEnabled = true;
+          warpCtx.imageSmoothingQuality = 'high';
+
+          // Use strip-based rendering for keystone correction
+          // Use fixed number of strips for consistent quality
+          const numStrips = 100;
+
+          if(keystoneV !== 0){
+            // Vertical keystone: draw horizontal strips with varying width
+            const stripH = Math.ceil(rotH / numStrips) + 1; // +1 for overlap
+            for(let i = 0; i < numStrips; i++){
+              const srcY = (i / numStrips) * rotH;
+              const t = i / (numStrips - 1); // 0 at top, 1 at bottom
+              const scale = 1 + (keystoneV / 100) * (2 * t - 1);
+              const scaledW = rotW * scale;
+              const offsetX = (rotW - scaledW) / 2;
+              const destY = srcY;
+              warpCtx.drawImage(rotCanvas,
+                0, srcY, rotW, stripH,
+                offsetX, destY, scaledW, stripH);
+            }
+          } else {
+            warpCtx.drawImage(rotCanvas, 0, 0);
+          }
+
+          if(keystoneH !== 0){
+            // Horizontal keystone: draw vertical strips with varying height
+            const tempCanvas2 = document.createElement('canvas');
+            tempCanvas2.width = rotW;
+            tempCanvas2.height = rotH;
+            const tempCtx2 = tempCanvas2.getContext('2d');
+            tempCtx2.imageSmoothingEnabled = true;
+            tempCtx2.imageSmoothingQuality = 'high';
+
+            const stripW = Math.ceil(rotW / numStrips) + 1; // +1 for overlap
+            for(let i = 0; i < numStrips; i++){
+              const srcX = (i / numStrips) * rotW;
+              const t = i / (numStrips - 1); // 0 at left, 1 at right
+              const scale = 1 + (keystoneH / 100) * (2 * t - 1);
+              const scaledH = rotH * scale;
+              const offsetY = (rotH - scaledH) / 2;
+              const destX = srcX;
+              tempCtx2.drawImage(warpedCanvas,
+                srcX, 0, stripW, rotH,
+                destX, offsetY, stripW, scaledH);
+            }
+            warpCtx.clearRect(0, 0, rotW, rotH);
+            warpCtx.drawImage(tempCanvas2, 0, 0);
+          }
+        }
+
+        // Step 3: Apply crop to the rotated+keystoned result
+        const cropX = Math.floor(warpedW * cropLeft);
+        const cropY = Math.floor(warpedH * cropTop);
+        const cropW = Math.floor(warpedW * (1 - cropLeft - cropRight));
+        const cropH = Math.floor(warpedH * (1 - cropTop - cropBottom));
+
+        if(cropW <= 0 || cropH <= 0) return;
+
+        // Set main canvas to cropped size
+        canvas.width = cropW;
+        canvas.height = cropH;
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(warpedCanvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+
+        // Now apply color adjustments if any
+        if(brightness !== 0 || contrast !== 0 || temperature !== 0 || isGrayscale){
+          const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const data = imgData.data;
+          const contrastFactor = (contrast + 100) / 100;
+
+          for(let i = 0; i < data.length; i += 4){
+            let r = data[i];
+            let g = data[i + 1];
+            let b = data[i + 2];
+
+            // Apply grayscale first
+            if(isGrayscale){
+              const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+              r = g = b = gray;
+            }
+
+            // Apply brightness
+            r += brightness * 2.55;
+            g += brightness * 2.55;
+            b += brightness * 2.55;
+
+            // Apply contrast
+            r = (r - 128) * contrastFactor + 128;
+            g = (g - 128) * contrastFactor + 128;
+            b = (b - 128) * contrastFactor + 128;
+
+            // Apply temperature
+            if(temperature !== 0){
+              const tempShift = temperature * 0.5;
+              r += tempShift;
+              b -= tempShift;
+              if(temperature > 0) g += tempShift * 0.3;
+            }
+
+            // Clamp
+            data[i] = Math.max(0, Math.min(255, r));
+            data[i + 1] = Math.max(0, Math.min(255, g));
+            data[i + 2] = Math.max(0, Math.min(255, b));
+          }
+
+          ctx.putImageData(imgData, 0, 0);
+        }
+
+        updateThumbnail();
+        scaleCanvasDisplay();
+      }
+
+      // Grayscale toggle
+      function toggleGrayscale(){
+        isGrayscale = !isGrayscale;
+        grayscaleBtn.style.background = isGrayscale ? 'var(--accent-hover)' : '';
+        applyAdjustments();
+        log('Grayscale ' + (isGrayscale ? 'enabled' : 'disabled'));
+      }
+
+      // Vista filter: preset values for bright, contrasty, warm look
+      function applyVista(){
+        // Vista-like preset: fixed values (not cumulative)
+        brightnessSlider.value = 15;
+        contrastSlider.value = 30;
+        temperatureSlider.value = 8;
+        updateValueDisplays();
+        applyAdjustments();
+        log('Vista preset applied');
+      }
+
+      // Auto-levels: stretch histogram to full range
+      function autoLevels(){
+        if(!originalImage || !originalImage.complete) return;
+        if(canvas.width <= 0 || canvas.height <= 0) return;
+
+        // Reset brightness/contrast to analyze the base transformed image
+        const savedBrightness = brightnessSlider.value;
+        const savedContrast = contrastSlider.value;
+        const savedTemperature = temperatureSlider.value;
+        brightnessSlider.value = 0;
+        contrastSlider.value = 0;
+        temperatureSlider.value = 0;
+
+        // Apply transforms with neutral color settings
+        applyAdjustments();
+
+        // Get canvas data (after rotation, keystone, crop, grayscale but before brightness/contrast)
+        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imgData.data;
+        let minVal = 255, maxVal = 0;
+
+        // Find min/max luminance (skip transparent and near-black pixels from rotation borders)
+        for(let i = 0; i < data.length; i += 4){
+          if(data[i + 3] < 200) continue; // Skip transparent/semi-transparent
+          const lum = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+          if(lum < minVal) minVal = lum;
+          if(lum > maxVal) maxVal = lum;
+        }
+
+        const range = maxVal - minVal;
+        if(range < 10){
+          // Restore saved values
+          brightnessSlider.value = savedBrightness;
+          contrastSlider.value = savedContrast;
+          temperatureSlider.value = savedTemperature;
+          applyAdjustments();
+          log('Auto levels: image already has good contrast');
+          return;
+        }
+
+        // Calculate adjustments to stretch histogram
+        const midOriginal = (minVal + maxVal) / 2;
+        const midTarget = 127.5;
+        const brightnessAdj = Math.round((midTarget - midOriginal) / 2.55);
+        const contrastAdj = Math.round((255 / range - 1) * 100);
+
+        brightnessSlider.value = Math.max(-100, Math.min(100, brightnessAdj));
+        contrastSlider.value = Math.max(-100, Math.min(100, contrastAdj));
+        temperatureSlider.value = savedTemperature; // Restore temperature
+        updateValueDisplays();
+        applyAdjustments();
+
+        log('Auto levels: brightness ' + brightnessSlider.value + ', contrast ' + contrastSlider.value);
+      }
+
+      // Event listeners for all sliders
+      const allSliders = [brightnessSlider, contrastSlider, temperatureSlider,
+                          lensSlider, rotationSlider, keystoneVSlider, keystoneHSlider,
+                          cropLeftSlider, cropRightSlider,
+                          cropTopSlider, cropBottomSlider];
+
+      allSliders.forEach(slider => {
+        slider.addEventListener('input', () => {
+          updateValueDisplays();
+          applyAdjustments();
+        });
+      });
+
+      // Save adjusted image
+      function saveAdjustedImage(){
+        if(canvas.width <= 0 || canvas.height <= 0){
+          log('No image to save');
+          return;
+        }
+        canvas.toBlob(function(blob){
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'adjusted-spectrogram.png';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          log('Saved adjusted image');
+        }, 'image/png');
+      }
+
+      // Button handlers
+      autoBtn.addEventListener('click', autoLevels);
+      resetBtn.addEventListener('click', resetAdjustments);
+      grayscaleBtn.addEventListener('click', toggleGrayscale);
+      vistaBtn.addEventListener('click', applyVista);
+      saveBtn.addEventListener('click', saveAdjustedImage);
+
+      log('Image adjustments enabled');
+    })();
+
   </script>
 
   <!-- License Footer -->
