@@ -696,6 +696,34 @@
       font-family: monospace;
     }
 
+    .rotate-buttons {
+      display: flex;
+      gap: 4px;
+      flex: 1;
+    }
+
+    .rotate-btn {
+      flex: 1;
+      padding: 4px 8px;
+      font-size: 11px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s;
+    }
+
+    .rotate-btn:hover {
+      background: rgba(31, 201, 170, 0.2);
+    }
+
+    .rotate-btn.active {
+      background: var(--accent);
+      color: #000;
+      border-color: var(--accent);
+    }
+
     .adjust-section-label {
       font-size: 11px;
       color: var(--dim);
@@ -1055,7 +1083,16 @@
             <span class="adjust-value" id="adjustLensVal">0</span>
           </div>
           <div class="adjust-row">
-            <label>Rotation</label>
+            <label>Rotate</label>
+            <div class="rotate-buttons">
+              <button type="button" id="rotate0" class="rotate-btn active" title="0°">0°</button>
+              <button type="button" id="rotate90" class="rotate-btn" title="90°">90°</button>
+              <button type="button" id="rotate180" class="rotate-btn" title="180°">180°</button>
+              <button type="button" id="rotate270" class="rotate-btn" title="270°">270°</button>
+            </div>
+          </div>
+          <div class="adjust-row">
+            <label>Fine Rotate</label>
             <input type="range" id="adjustRotation" min="-30" max="30" value="0" step="0.1">
             <span class="adjust-value" id="adjustRotationVal">0°</span>
           </div>
@@ -4201,19 +4238,35 @@ async function processImage(){
           await cameraVideo.play();
           cameraStatus.textContent = 'Point camera at spectrogram, then tap capture';
 
-          // Check if torch is supported
+          // Check if torch is supported (with slight delay for capability detection)
           const track = currentStream.getVideoTracks()[0];
           if(track){
-            const capabilities = track.getCapabilities ? track.getCapabilities() : {};
-            if(capabilities.torch){
-              flashBtn.style.display = 'inline-flex';
-              // Reset torch state when starting camera
-              torchOn = false;
-              flashBtn.textContent = '🔦';
-              flashBtn.classList.remove('active');
-            } else {
-              flashBtn.style.display = 'none';
-            }
+            // Some devices need a moment before capabilities are fully available
+            setTimeout(() => {
+              if(typeof track.getCapabilities !== 'function'){
+                console.log('[camera] getCapabilities not supported');
+                flashBtn.style.display = 'none';
+                return;
+              }
+              const capabilities = track.getCapabilities();
+              console.log('[camera] Track capabilities:', capabilities);
+
+              // Check if torch is a supported capability
+              const hasTorch = 'torch' in capabilities && capabilities.torch === true;
+              console.log('[camera] Torch supported:', hasTorch);
+
+              if(hasTorch){
+                flashBtn.style.display = 'inline-flex';
+                // Reset torch state when starting camera
+                torchOn = false;
+                flashBtn.textContent = '🔦';
+                flashBtn.classList.remove('active');
+                console.log('[camera] Flash button enabled');
+              } else {
+                flashBtn.style.display = 'none';
+                console.log('[camera] Flash button hidden - torch not available');
+              }
+            }, 500);
           }
 
         } catch(err){
@@ -4360,6 +4413,11 @@ async function processImage(){
       const lensVal = document.getElementById('adjustLensVal');
       const rotationSlider = document.getElementById('adjustRotation');
       const rotationVal = document.getElementById('adjustRotationVal');
+      const rotate0Btn = document.getElementById('rotate0');
+      const rotate90Btn = document.getElementById('rotate90');
+      const rotate180Btn = document.getElementById('rotate180');
+      const rotate270Btn = document.getElementById('rotate270');
+      let baseRotation = 0; // 0, 90, 180, or 270 degrees
       const keystoneVSlider = document.getElementById('keystoneV');
       const keystoneHSlider = document.getElementById('keystoneH');
       const keystoneVVal = document.getElementById('keystoneVVal');
@@ -4416,6 +4474,9 @@ async function processImage(){
         temperatureSlider.value = 0;
         lensSlider.value = 0;
         rotationSlider.value = 0;
+        baseRotation = 0;
+        [rotate0Btn, rotate90Btn, rotate180Btn, rotate270Btn].forEach(btn => btn.classList.remove('active'));
+        rotate0Btn.classList.add('active');
         keystoneVSlider.value = 0;
         keystoneHSlider.value = 0;
         cropLeftSlider.value = 0;
@@ -4457,7 +4518,7 @@ async function processImage(){
         const contrast = parseInt(contrastSlider.value);
         const temperature = parseInt(temperatureSlider.value);
         const lens = parseInt(lensSlider.value);
-        const rotation = parseFloat(rotationSlider.value);
+        const rotation = baseRotation + parseFloat(rotationSlider.value);
         const keystoneV = parseInt(keystoneVSlider.value);
         const keystoneH = parseInt(keystoneHSlider.value);
         const cropLeft = parseFloat(cropLeftSlider.value) / 100;
@@ -4781,6 +4842,25 @@ async function processImage(){
           applyAdjustments();
         });
       });
+
+      // Rotation button event listeners
+      function setBaseRotation(deg){
+        baseRotation = deg;
+        // Update active state on buttons
+        [rotate0Btn, rotate90Btn, rotate180Btn, rotate270Btn].forEach(btn => {
+          btn.classList.remove('active');
+        });
+        if(deg === 0) rotate0Btn.classList.add('active');
+        else if(deg === 90) rotate90Btn.classList.add('active');
+        else if(deg === 180) rotate180Btn.classList.add('active');
+        else if(deg === 270) rotate270Btn.classList.add('active');
+        applyAdjustments();
+      }
+
+      rotate0Btn.addEventListener('click', () => setBaseRotation(0));
+      rotate90Btn.addEventListener('click', () => setBaseRotation(90));
+      rotate180Btn.addEventListener('click', () => setBaseRotation(180));
+      rotate270Btn.addEventListener('click', () => setBaseRotation(270));
 
       // Save adjusted image
       function saveAdjustedImage(){
