@@ -970,16 +970,15 @@ Fix: Ensure FFT Size & Duration (sec) is close to original. Unfortunately, this 
       <div class="row">
         <label>Phase Method
           <select id="phaseMethod">
-            <option value="istft">iSTFT (coherent phase)</option>
-            <option value="running">Running-sine</option>
             <option value="griffinlim" selected>Griffin-Lim (FGLA)</option>
-            <option value="pghi_like">PGHI (approx)</option>
-            <option value="pghi_true">PGHI (true)</option>
+            <option value="pghi_true">PGHI</option>
+            <option value="istft">Zero Phase</option>
+            <option value="running">Additive Synthesis</option>
             <option value="neural">Neural Vocoder</option>
           </select>
         </label>
         <label id="iterationsLabel">Iterations <input type="number" id="iterations" value="24" min="1" max="50" step="1"></label>
-        <label title="100% = exact magnitude match, lower = smoother phase">Mag Strictness % <input type="number" id="magStrictness" value="100" min="50" max="100" step="5" style="width: 70px;"></label>
+        <label id="magStrictnessLabel" title="100% = exact magnitude match, lower = smoother phase">Mag Strictness % <input type="number" id="magStrictness" value="100" min="50" max="100" step="5" style="width: 70px;"></label>
       </div>
       <div class="row" id="neuralVocoderOptions" style="display: none;">
         <label style="flex: 1;">Vocoder Model URL <input type="text" id="vocoderModelUrl" placeholder="Enter ONNX model URL" style="width: 100%;"></label>
@@ -1075,6 +1074,7 @@ Fix: Ensure FFT Size & Duration (sec) is close to original. Unfortunately, this 
       const vocoderModelUrl = document.getElementById('vocoderModelUrl');
 
       const iterationsLabel = document.getElementById('iterationsLabel');
+      const magStrictnessLabel = document.getElementById('magStrictnessLabel');
 
       function updatePhaseMethodUI() {
         // Show/hide neural vocoder options
@@ -1084,10 +1084,13 @@ Fix: Ensure FFT Size & Duration (sec) is close to original. Unfortunately, this 
           neuralOptions.style.display = 'none';
         }
 
-        // Show/hide iterations (only for Griffin-Lim and PGHI approx)
-        const needsIterations = ['griffinlim', 'pghi_like'].includes(phaseMethodSelect.value);
+        // Show/hide iterations and mag strictness (only for Griffin-Lim)
+        const isGriffinLim = phaseMethodSelect.value === 'griffinlim';
         if (iterationsLabel) {
-          iterationsLabel.style.display = needsIterations ? '' : 'none';
+          iterationsLabel.style.display = isGriffinLim ? '' : 'none';
+        }
+        if (magStrictnessLabel) {
+          magStrictnessLabel.style.display = isGriffinLim ? '' : 'none';
         }
       }
 
@@ -2235,8 +2238,8 @@ async function processImage(){
         }
 
         if(phaseMethod === 'istft'){
-          log('iSTFT synthesis with coherent phase');
-          log(`iSTFT using rows=${rows}, kMin=${kMin}, kMax=${kMax}, hop=${workHop}, fft=${fftSize}`);
+          log('Zero Phase synthesis');
+          log(`Zero Phase: rows=${rows}, kMin=${kMin}, kMax=${kMax}, hop=${workHop}, fft=${fftSize}`);
           let istftSignal = await istftReconstruct(magsWork, rows, workCols, sampleRate, fftSize, workHop, kMin, kMax, rowToBin, log);
           await finalizeAudio(istftSignal, sampleRate, effPxPerSec);
           return;
@@ -2247,13 +2250,8 @@ async function processImage(){
           let glSignal = await griffinLimReconstruct(magsWork, rows, workCols, sampleRate, fftSize, workHop, kMin, kMax, rowToBin, iterations, log);
           await finalizeAudio(glSignal, sampleRate, effPxPerSec);
           return;
-        } else if(phaseMethod === 'pghi_like'){
-          log(`PGHI (approx) with ${iterations} refinements`);
-          let pghiSignal = await pghiLikeReconstruct(magsWork, rows, workCols, sampleRate, fftSize, workHop, kMin, kMax, rowToBin, iterations, log);
-          await finalizeAudio(pghiSignal, sampleRate, effPxPerSec);
-          return;
         } else if(phaseMethod === 'pghi_true'){
-          log(`PGHI (true) reconstruction`);
+          log(`PGHI reconstruction`);
           let pghiTrueSignal = await truePghiReconstruct(magsWork, rows, workCols, sampleRate, fftSize, workHop, kMin, kMax, rowToBin, iterations, log);
           await finalizeAudio(pghiTrueSignal, sampleRate, effPxPerSec);
           return;
@@ -2268,33 +2266,56 @@ async function processImage(){
           }
           return;
         } else if(phaseMethod === 'running'){
-          log('Running-sine synthesis');
+          log('Additive Synthesis');
           const outLen = workHop*(workCols - 1) + fftSize;
           const signal = new Float32Array(outLen);
           const w = (workHop < fftSize) ? hannWindow(fftSize) : null;
           const phases = new Float32Array(usedBins);
+          // Normalize for overlap-add: each sample receives contributions from (fftSize/hop) frames
+          // Factor of 6 empirically tuned to match Griffin-Lim output levels
+          const overlapNorm = workHop / fftSize / 6;
+          const gainNorm = preGain * overlapNorm;
+          // Precompute phase increments per bin (2π * freq / sampleRate)
+          const phaseIncs = new Float32Array(usedBins);
+          const hopPhaseIncs = new Float32Array(usedBins);
+          for(let y=0; y<rows; y++){
+            const k = rowToBin[y];
+            const bin = binToIdx[k];
+            if(bin >= 0 && bin < usedBins){
+              const freq = (k * sampleRate) / fftSize;
+              phaseIncs[bin] = 2 * Math.PI * freq / sampleRate;
+              hopPhaseIncs[bin] = phaseIncs[bin] * workHop;
+            }
+          }
           for(let b=0;b<usedBins;b++) phases[b]=0;
+          const signalLen = signal.length;
           for(let c=0;c<workCols;c++){
             const src = reverse ? (workCols - 1 - c) : c;
+            const start = c * workHop;
+            const maxT = Math.min(fftSize, signalLen - start);
             for(let y=0;y<rows;y++){
               const k = rowToBin[y];
               const bin = binToIdx[k];
-              const a = magsWork[y*workCols + src] * preGain;
+              const a = magsWork[y*workCols + src] * gainNorm;
               if(a<=0) continue;
-              const freq = (k * sampleRate) / fftSize;
-              const ph0 = phases[bin];
-              const start = c*workHop;
-              for(let t=0;t<fftSize;t++){
-                const idx = start + t;
-                if(idx>=signal.length) break;
-                const ph = ph0 + 2*Math.PI*freq*(t/sampleRate);
-                const win = w ? w[t] : 1;
-                signal[idx] += a * Math.sin(ph) * win;
+              const phaseInc = phaseIncs[bin];
+              let ph = phases[bin];
+              if(w){
+                for(let t=0; t<maxT; t++){
+                  signal[start + t] += a * Math.sin(ph) * w[t];
+                  ph += phaseInc;
+                }
+              } else {
+                for(let t=0; t<maxT; t++){
+                  signal[start + t] += a * Math.sin(ph);
+                  ph += phaseInc;
+                }
               }
-              const sliceTime = workHop / sampleRate;
-              phases[bin] = (ph0 + 2*Math.PI*freq*sliceTime) % (2*Math.PI);
+              phases[bin] += hopPhaseIncs[bin];
+              // Keep phase in reasonable range to avoid precision loss
+              if(phases[bin] > 6.283185) phases[bin] -= 6.283185307179586;
             }
-            if(c%50===0){ log(`Col ${c}/${workCols}`); await yieldUI(); }
+            if(c%100===0){ log(`Col ${c}/${workCols}`); await yieldUI(); }
           }
           await finalizeAudio(signal, sampleRate, effPxPerSec);
         }
@@ -2329,9 +2350,6 @@ async function processImage(){
       if(postGain !== 1){ for(let i=0;i<signal.length;i++){ signal[i] *= postGain; } }
 
       for(let i=0;i<signal.length;i++){ if(!Number.isFinite(signal[i]) || Number.isNaN(signal[i])) signal[i]=0; }
-      let peak=0;
-      for(let i=0;i<signal.length;i++){ const a = Math.abs(signal[i]); if(a>peak) peak=a; }
-      if(peak>1) log(`Warning: peak ${peak.toFixed(3)} > 1.0, WAV will hard-clip. No normalization.`);
 
       // Apply short fade-in/fade-out to prevent click/chirp artifacts
       const fadeMs = 5;
@@ -2667,6 +2685,41 @@ async function processImage(){
       return signal;
     }
 
+    // Binary max-heap for O(log n) push/pop - replaces O(n log n) array.sort() in PGHI
+    class MaxHeap {
+      constructor() { this.d = []; }
+      get length() { return this.d.length; }
+      push(priority, value) {
+        this.d.push([priority, value]);
+        let i = this.d.length - 1;
+        while (i > 0) {
+          const p = (i - 1) >> 1;
+          if (this.d[p][0] >= this.d[i][0]) break;
+          [this.d[p], this.d[i]] = [this.d[i], this.d[p]];
+          i = p;
+        }
+      }
+      pop() {
+        if (this.d.length === 0) return null;
+        const top = this.d[0];
+        const last = this.d.pop();
+        if (this.d.length > 0) {
+          this.d[0] = last;
+          let i = 0;
+          while (true) {
+            const l = (i << 1) + 1, r = l + 1;
+            let largest = i;
+            if (l < this.d.length && this.d[l][0] > this.d[largest][0]) largest = l;
+            if (r < this.d.length && this.d[r][0] > this.d[largest][0]) largest = r;
+            if (largest === i) break;
+            [this.d[i], this.d[largest]] = [this.d[largest], this.d[i]];
+            i = largest;
+          }
+        }
+        return top;
+      }
+    }
+
     async function truePghiReconstruct(magsWork, rows, cols, fs, N, hop, kMin, kMax, rowToBin, iters, logFn){
       const preGain = __getPreGain();
       const posBins = Math.floor(N/2);
@@ -2674,20 +2727,25 @@ async function processImage(){
 
       const target = new Array(frames);
       for(let c=0;c<frames;c++){
+        let maxA = 0;
         const mag = new Float32Array(posBins);
         for(let y=0;y<rows;y++){
           const k = rowToBin[y];
           if(k>=0 && k<posBins){
             const a = magsWork[y*cols + c];
             if(a>mag[k]) mag[k]=a;
+            if(a>maxA) maxA=a;
           }
         }
+        // Apply noise floor (matching Griffin-Lim)
+        const floorA = maxA * 1e-4;
+        for(let k=0;k<posBins;k++){ if(mag[k] < floorA) mag[k] = 0; }
         const specScale = N / 2;
         for(let k=0;k<posBins;k++){ mag[k] *= specScale; mag[k] *= preGain; }
         target[c]=mag;
       }
 
-      logFn("PGHI (true): computing phase gradients...");
+      logFn("PGHI: computing phase gradients...");
       await new Promise(r=>requestAnimationFrame(r));
 
       const logMag = new Float32Array(rows*cols);
@@ -2711,8 +2769,13 @@ async function processImage(){
       const dPhiT = new Float32Array(rows*cols);
       const dPhiF = new Float32Array(rows*cols);
       const twoPi = 2 * Math.PI;
-      const scaleT = twoPi * hop / N;
-      const scaleF = twoPi * N / hop;
+      // PGHI for Hann window: gamma ≈ (N * hop) / (8 * ln(2)) for time-frequency product
+      // For time direction: correction = gamma * (discrete freq gradient)
+      // For freq direction: correction = (1/gamma) * (discrete time gradient)
+      // Discrete gradients are already normalized by the difference spacing
+      const gamma = (N * hop) / (8 * Math.log(2));  // Hann window approximation
+      const scaleT = gamma / (N * N);  // Scale for freq gradient -> time phase
+      const scaleF = 1 / gamma;        // Scale for time gradient -> freq phase
       for(let y = 0; y < rows; y++){
         for(let x = 0; x < cols; x++){
           const idx = y * cols + x;
@@ -2726,43 +2789,68 @@ async function processImage(){
 
       const phase = new Float32Array(rows*cols).fill(NaN);
       const visited = new Uint8Array(rows*cols);
-      const heap = [];
-      const pushHeap = (idx, val)=>{ heap.push([val, idx]); };
-      for(let i=0;i<magsWork.length;i++) if(magsWork[i]>0) pushHeap(i, magsWork[i]);
-      heap.sort((a,b)=>b[0]-a[0]);
-      if(heap.length === 0){
+
+      // Use binary max-heap instead of array + sort() - O(log n) vs O(n log n) per operation
+      const heap = new MaxHeap();
+
+      // Find the highest-magnitude pixel to seed
+      let seedIdx = 0, maxMag = 0;
+      for(let i=0; i<magsWork.length; i++){
+        if(magsWork[i] > maxMag){ maxMag = magsWork[i]; seedIdx = i; }
+      }
+      if(maxMag === 0){
         logFn("PGHI: empty magnitude matrix.");
         return new Float32Array();
       }
 
-      const [seedVal, seedIdx] = heap[0];
+      // Seed the highest-magnitude pixel with phase 0 and add to heap
       phase[seedIdx] = 0;
       visited[seedIdx] = 1;
+      heap.push(magsWork[seedIdx], seedIdx);
 
-      const neighbors = [[1,0],[-1,0],[0,1],[0,-1]];
       while(heap.length > 0){
-        const [magVal, idx] = heap.shift();
-        if(isNaN(phase[idx])) continue;
+        const entry = heap.pop();
+        if(!entry) break;
+        const [magVal, idx] = entry;
         const y = Math.floor(idx / cols);
         const x = idx - y * cols;
 
-        for(const [dx, dy] of neighbors){
-          const nx = x + dx, ny = y + dy;
-          if(nx < 0 || nx >= cols || ny < 0 || ny >= rows) continue;
-          const nidx = ny * cols + nx;
-          if(visited[nidx]) continue;
+        // Get the frequency bin for this row to compute carrier term
+        const k = rowToBin[y];
+        // Carrier phase advance per hop in time: 2π * k * hop / N
+        const carrier = twoPi * k * hop / N;
 
-          let phi = phase[idx];
-          if(dx !== 0) phi += dPhiT[idx] * dx;
-          if(dy !== 0) phi += dPhiF[idx] * dy;
-
-          phase[nidx] = phi;
-          visited[nidx] = 1;
-          heap.push([magsWork[nidx], nidx]);
+        // Process unvisited neighbors - assign phase, mark visited, add to heap
+        // Time direction: phase advances by carrier + PGHI correction
+        // Right (dx=+1)
+        if(x + 1 < cols && !visited[idx + 1]){
+          phase[idx + 1] = phase[idx] + carrier + dPhiT[idx];
+          visited[idx + 1] = 1;
+          heap.push(magsWork[idx + 1], idx + 1);
         }
-        heap.sort((a,b)=>b[0]-a[0]);
+        // Left (dx=-1)
+        if(x > 0 && !visited[idx - 1]){
+          phase[idx - 1] = phase[idx] - carrier - dPhiT[idx];
+          visited[idx - 1] = 1;
+          heap.push(magsWork[idx - 1], idx - 1);
+        }
+        // Down (dy=+1) - frequency direction, no carrier term
+        if(y + 1 < rows && !visited[idx + cols]){
+          phase[idx + cols] = phase[idx] + dPhiF[idx];
+          visited[idx + cols] = 1;
+          heap.push(magsWork[idx + cols], idx + cols);
+        }
+        // Up (dy=-1) - frequency direction, no carrier term
+        if(y > 0 && !visited[idx - cols]){
+          phase[idx - cols] = phase[idx] - dPhiF[idx];
+          visited[idx - cols] = 1;
+          heap.push(magsWork[idx - cols], idx - cols);
+        }
       }
-      logFn(`Heap integration complete (${visited.reduce((a,b)=>a+b,0)} bins)`);
+
+      let visitCount = 0;
+      for(let i=0; i<rows*cols; i++) if(visited[i]) visitCount++;
+      logFn(`Heap integration complete (${visitCount} bins)`);
 
       const spec = new Array(frames);
       for(let c=0;c<frames;c++){
@@ -2787,6 +2875,10 @@ async function processImage(){
       logFn("ISTFT synthesis...");
       const outLen = hop*(frames - 1) + N;
       const signal = istft({spec, fftSize:N}, hop, outLen);
+      // PGHI produces lower energy than Griffin-Lim due to phase spreading
+      // Boost by ~8.5 dB (factor of 2.7) to match FGLA output levels
+      const pghiGainBoost = 2.7;
+      for(let i = 0; i < signal.length; i++) signal[i] *= pghiGainBoost;
       logFn("ISTFT synthesis done.");
       return signal;
     }
@@ -3115,14 +3207,19 @@ async function processImage(){
       // Build target magnitude array
       const target = new Array(frames);
       for(let c=0;c<frames;c++){
+        let maxA = 0;
         const mag = new Float32Array(posBins);
         for(let y=0;y<rows;y++){
           const k = rowToBin[y];
           if(k>=0 && k<posBins){
             const a = magRowsCols[y*cols + c];
             if(a>mag[k]) mag[k]=a;
+            if(a>maxA) maxA=a;
           }
         }
+        // Apply noise floor (matching Griffin-Lim)
+        const floorA = maxA * 1e-4;
+        for(let k=0;k<posBins;k++){ if(mag[k] < floorA) mag[k] = 0; }
         const specScale = N / 2;
         for(let k=0;k<posBins;k++){ mag[k] *= specScale * preGain; }
         target[c]=mag;
@@ -3147,7 +3244,7 @@ async function processImage(){
       const outLen = hop*(frames - 1) + N;
       const signal = istft({spec, fftSize: N}, hop, outLen);
 
-      logFn && logFn(`iSTFT complete: ${signal.length} samples (${(signal.length / fs).toFixed(2)}s)`);
+      logFn && logFn(`Zero Phase complete: ${signal.length} samples (${(signal.length / fs).toFixed(2)}s)`);
       return signal;
     }
 
