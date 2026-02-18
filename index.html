@@ -1078,6 +1078,16 @@
             <span class="adjust-value" id="adjustTemperatureVal">0</span>
           </div>
           <div class="adjust-row">
+            <label>Black Point</label>
+            <input type="range" id="adjustBlackPoint" min="0" max="255" value="0" step="1">
+            <span class="adjust-value" id="adjustBlackPointVal">0</span>
+          </div>
+          <div class="adjust-row">
+            <label>White Point</label>
+            <input type="range" id="adjustWhitePoint" min="0" max="255" value="255" step="1">
+            <span class="adjust-value" id="adjustWhitePointVal">255</span>
+          </div>
+          <div class="adjust-row">
             <label>Lens</label>
             <input type="range" id="adjustLens" min="-50" max="50" value="0" step="1">
             <span class="adjust-value" id="adjustLensVal">0</span>
@@ -4395,6 +4405,10 @@ async function processImage(){
       const brightnessVal = document.getElementById('adjustBrightnessVal');
       const contrastVal = document.getElementById('adjustContrastVal');
       const temperatureVal = document.getElementById('adjustTemperatureVal');
+      const blackPointSlider = document.getElementById('adjustBlackPoint');
+      const whitePointSlider = document.getElementById('adjustWhitePoint');
+      const blackPointVal = document.getElementById('adjustBlackPointVal');
+      const whitePointVal = document.getElementById('adjustWhitePointVal');
 
       // Lens, rotation, and keystone sliders
       const lensSlider = document.getElementById('adjustLens');
@@ -4460,6 +4474,8 @@ async function processImage(){
         brightnessSlider.value = 0;
         contrastSlider.value = 0;
         temperatureSlider.value = 0;
+        blackPointSlider.value = 0;
+        whitePointSlider.value = 255;
         lensSlider.value = 0;
         rotationSlider.value = 0;
         baseRotation = 0;
@@ -4488,6 +4504,8 @@ async function processImage(){
         brightnessVal.textContent = brightnessSlider.value;
         contrastVal.textContent = contrastSlider.value;
         temperatureVal.textContent = temperatureSlider.value;
+        blackPointVal.textContent = blackPointSlider.value;
+        whitePointVal.textContent = whitePointSlider.value;
         lensVal.textContent = lensSlider.value;
         rotationVal.textContent = rotationSlider.value + '°';
         keystoneVVal.textContent = keystoneVSlider.value;
@@ -4697,10 +4715,14 @@ async function processImage(){
         ctx.drawImage(warpedCanvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
 
         // Now apply color adjustments if any
-        if(brightness !== 0 || contrast !== 0 || temperature !== 0 || isGrayscale){
+        const bp = parseInt(blackPointSlider.value);
+        const wp = parseInt(whitePointSlider.value);
+        const hasLevels = bp > 0 || wp < 255;
+        if(brightness !== 0 || contrast !== 0 || temperature !== 0 || isGrayscale || hasLevels){
           const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
           const data = imgData.data;
           const contrastFactor = (contrast + 100) / 100;
+          const levelsRange = Math.max(1, wp - bp);
 
           for(let i = 0; i < data.length; i += 4){
             let r = data[i];
@@ -4711,6 +4733,13 @@ async function processImage(){
             if(isGrayscale){
               const gray = 0.299 * r + 0.587 * g + 0.114 * b;
               r = g = b = gray;
+            }
+
+            // Apply levels (black point / white point) before brightness/contrast
+            if(hasLevels){
+              r = (r - bp) / levelsRange * 255;
+              g = (g - bp) / levelsRange * 255;
+              b = (b - bp) / levelsRange * 255;
             }
 
             // Apply brightness
@@ -4758,35 +4787,39 @@ async function processImage(){
         brightnessSlider.value = 15;
         contrastSlider.value = 30;
         temperatureSlider.value = 8;
+        blackPointSlider.value = 0;
+        whitePointSlider.value = 255;
         updateValueDisplays();
         applyAdjustments();
         log('Vista preset applied');
       }
 
-      // Auto-levels: stretch histogram to full range
+      // Auto-levels: stretch histogram to full range using black/white point
       function autoLevels(){
         if(!originalImage || !originalImage.complete) return;
         if(canvas.width <= 0 || canvas.height <= 0) return;
 
-        // Reset brightness/contrast to analyze the base transformed image
+        // Reset color adjustments to analyze the base geometric-transformed image
         const savedBrightness = brightnessSlider.value;
         const savedContrast = contrastSlider.value;
         const savedTemperature = temperatureSlider.value;
         brightnessSlider.value = 0;
         contrastSlider.value = 0;
         temperatureSlider.value = 0;
+        blackPointSlider.value = 0;
+        whitePointSlider.value = 255;
 
         // Apply transforms with neutral color settings
         applyAdjustments();
 
-        // Get canvas data (after rotation, keystone, crop, grayscale but before brightness/contrast)
+        // Get canvas data (after rotation, keystone, crop, grayscale but before color adjustments)
         const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const data = imgData.data;
         let minVal = 255, maxVal = 0;
 
-        // Find min/max luminance (skip transparent and near-black pixels from rotation borders)
+        // Find min/max luminance (skip transparent pixels from rotation borders)
         for(let i = 0; i < data.length; i += 4){
-          if(data[i + 3] < 200) continue; // Skip transparent/semi-transparent
+          if(data[i + 3] < 200) continue;
           const lum = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
           if(lum < minVal) minVal = lum;
           if(lum > maxVal) maxVal = lum;
@@ -4794,7 +4827,6 @@ async function processImage(){
 
         const range = maxVal - minVal;
         if(range < 10){
-          // Restore saved values
           brightnessSlider.value = savedBrightness;
           contrastSlider.value = savedContrast;
           temperatureSlider.value = savedTemperature;
@@ -4803,23 +4835,21 @@ async function processImage(){
           return;
         }
 
-        // Calculate adjustments to stretch histogram
-        const midOriginal = (minVal + maxVal) / 2;
-        const midTarget = 127.5;
-        const brightnessAdj = Math.round((midTarget - midOriginal) / 2.55);
-        const contrastAdj = Math.round((255 / range - 1) * 100);
-
-        brightnessSlider.value = Math.max(-100, Math.min(100, brightnessAdj));
-        contrastSlider.value = Math.max(-100, Math.min(100, contrastAdj));
-        temperatureSlider.value = savedTemperature; // Restore temperature
+        // Set black point and white point to stretch histogram to full 0-255
+        blackPointSlider.value = Math.round(minVal);
+        whitePointSlider.value = Math.round(maxVal);
+        brightnessSlider.value = 0;
+        contrastSlider.value = 0;
+        temperatureSlider.value = savedTemperature;
         updateValueDisplays();
         applyAdjustments();
 
-        log('Auto levels: brightness ' + brightnessSlider.value + ', contrast ' + contrastSlider.value);
+        log('Auto levels: black point ' + blackPointSlider.value + ', white point ' + whitePointSlider.value);
       }
 
       // Event listeners for all sliders
       const allSliders = [brightnessSlider, contrastSlider, temperatureSlider,
+                          blackPointSlider, whitePointSlider,
                           lensSlider, rotationSlider, keystoneVSlider, keystoneHSlider,
                           cropLeftSlider, cropRightSlider,
                           cropTopSlider, cropBottomSlider];
