@@ -2200,8 +2200,24 @@ async function processImage(){
           log(`Using canvas height: ${rows}`);
         }
 
-        const marginBottom = 0;
-        const y0 = Math.max(0, canvas.height - rows - marginBottom);
+        // Handle print layout border/info margin from SpectroGhost metadata
+        let printBorderW = 0;
+        let printInfoH = 0;
+        if(isRealSpectroGhost){
+          if(window.__lastMeta?.printBorder === 'true'){
+            printBorderW = Math.round(Number(window.__lastMeta.printBorderWidth) || 0);
+          }
+          if(window.__lastMeta?.printInfo === 'true'){
+            printInfoH = Math.round(Number(window.__lastMeta.printInfoHeight) || 0);
+          }
+          if(printBorderW > 0 || printInfoH > 0){
+            log(`Print layout trim: border=${printBorderW}px, info margin=${printInfoH}px`);
+          }
+        }
+
+        // y0/cropWidth: offset into the canvas to read just the spectrogram data
+        const y0 = printBorderW; // skip top border (if any)
+        cropWidth = Math.max(1, cropWidth - printBorderW * 2); // trim left+right borders
 
         // Debug logging for dimension issues
         log(`DEBUG: canvas.width=${canvas.width}, canvas.height=${canvas.height}, cropWidth=${cropWidth}, rows=${rows}, hasMetadata=${hasMetadata}`);
@@ -2260,7 +2276,7 @@ async function processImage(){
         log(`fft ${fftSize}, min ${minFreq} Hz, max ${maxFreq} Hz, rows ${rows}`);
         await yieldUI();
 
-        const imgData = ctx.getImageData(marginLeft, y0, cropWidth, rows);
+        const imgData = ctx.getImageData(marginLeft + printBorderW, y0, cropWidth, rows);
         const data = imgData.data;
 
         // Diagnostic: Sample some pixel values to detect color space issues
