@@ -2751,16 +2751,28 @@ async function processImage(){
         signal[signal.length - 1 - i] *= env;
       }
 
-      log('Encoding WAV');
+      log('Encoding audio...');
       await yieldUI();
-      const wav = encodeWAV(signal, sampleRate);
-      const blob = new Blob([wav], {type:'audio/wav'});
+      let blob, ext;
+      const compressed = await encodeToCompressed(signal, sampleRate);
+      if(compressed){
+        blob = compressed.blob;
+        ext = compressed.mimeType.includes('webm') ? 'webm'
+            : compressed.mimeType.includes('ogg') ? 'ogg' : 'm4a';
+        log(`Encoded as ${ext} (${(blob.size/1024).toFixed(0)} KB)`);
+      } else {
+        const wav = encodeWAV(signal, sampleRate);
+        blob = new Blob([wav], {type:'audio/wav'});
+        ext = 'wav';
+        log(`Encoded as WAV (${(blob.size/1024).toFixed(0)} KB)`);
+      }
       const url = URL.createObjectURL(blob);
       const a = document.getElementById('audioPlayer');
       a.src = url;
       a.play().catch(()=>{});
       const d = document.getElementById('downloadBtn');
       d.dataset.url = url;
+      d.dataset.ext = ext;
       d.style.display = 'inline-block';
       log('Audio ready. Use the player or Download.');
 
@@ -2783,6 +2795,42 @@ async function processImage(){
       updatePlayheadPosition(0);
 
       console.log(`[PLAYHEAD] Initialized successfully`);
+    }
+
+    // Encode a Float32Array to compressed audio via MediaRecorder.
+    // Tries webm/opus → ogg/opus → mp4/aac in order; returns null if unsupported.
+    // Plays in real-time: encoding takes as long as the audio duration.
+    function encodeToCompressed(signal, sampleRate){
+      const mimeType = ['audio/webm;codecs=opus','audio/ogg;codecs=opus','audio/mp4']
+        .find(t => MediaRecorder.isTypeSupported(t));
+      if(!mimeType) return Promise.resolve(null);
+
+      return new Promise((resolve, reject) => {
+        let actx;
+        try{ actx = new AudioContext({ sampleRate }); }
+        catch(e){ return resolve(null); }
+
+        const buffer = actx.createBuffer(1, signal.length, sampleRate);
+        buffer.getChannelData(0).set(signal);
+
+        const dest = actx.createMediaStreamDestination();
+        const source = actx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(dest);
+
+        const recorder = new MediaRecorder(dest.stream, { mimeType });
+        const chunks = [];
+        recorder.ondataavailable = e => { if(e.data.size > 0) chunks.push(e.data); };
+        recorder.onstop = () => {
+          actx.close();
+          resolve({ blob: new Blob(chunks, { type: mimeType }), mimeType });
+        };
+        recorder.onerror = () => { actx.close(); resolve(null); };
+
+        recorder.start();
+        source.start();
+        source.onended = () => recorder.stop();
+      });
     }
 
     function encodeWAV(samples, sampleRate){
@@ -4107,9 +4155,10 @@ async function processImage(){
         __dlBtn.addEventListener('click', ()=>{
           const url = __dlBtn.dataset && __dlBtn.dataset.url;
           if(!url){ log('No audio available to download yet.'); return; }
+          const ext = __dlBtn.dataset.ext || 'wav';
           const a = document.createElement('a');
           a.href = url;
-          a.download = 'resounder_inverted.wav';
+          a.download = `resounder_inverted.${ext}`;
           document.body.appendChild(a);
           a.click();
           a.remove();
