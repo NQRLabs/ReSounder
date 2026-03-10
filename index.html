@@ -2703,8 +2703,9 @@ async function processImage(){
         }
       };
       
-      // If we have a file, load it. Otherwise, canvas already has pasted image
-      if(file){
+      // If canvas already has content (loaded file or paste, possibly with adjustments applied),
+      // use it directly. Only reload from file if the canvas is empty.
+      if(file && canvas.width === 0 && canvas.height === 0){
         const img = new Image();
         const url = URL.createObjectURL(file);
         img.onload = async ()=>{
@@ -2721,7 +2722,8 @@ async function processImage(){
         };
         img.src = url;
       } else {
-        // Canvas already has the pasted image, process it directly
+        // Canvas already has the image (file was loaded into canvas on selection, or pasted),
+        // including any adjustments applied via the adjustment panel — process it as-is.
         await processCanvasContent();
       }
     }
