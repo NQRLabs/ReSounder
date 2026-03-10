@@ -734,6 +734,15 @@
       border-top: 1px solid var(--border);
     }
 
+    .crop-auto-trim-info {
+      font-size: 11px;
+      color: var(--accent);
+      border-left: 2px solid var(--accent);
+      padding: 4px 8px;
+      margin-bottom: 10px;
+      line-height: 1.5;
+    }
+
     .adjust-buttons {
       display: flex;
       gap: 10px;
@@ -1117,6 +1126,7 @@
             <span class="adjust-value" id="keystoneHVal">0</span>
           </div>
           <div class="adjust-section-label">Crop</div>
+          <div id="cropAutoTrimInfo" class="crop-auto-trim-info" style="display:none;"></div>
           <div class="adjust-row">
             <label>Left</label>
             <input type="range" id="cropLeft" min="0" max="50" value="0" step="0.5">
@@ -1369,7 +1379,14 @@ Fix: Ensure FFT Size & Duration (sec) is close to original. Unfortunately, this 
         <label style="display: flex; flex-direction: row; align-items: center; gap: 8px;">
           <input type="checkbox" id="interpolateFrames">Interpolate Frames
         </label>
-        <label>Target Overlap % <input type="number" id="targetOverlap" value="75" min="50" max="87.5" step="12.5" style="width: 80px;"></label>
+        <label>Target Overlap %
+          <select id="targetOverlap">
+            <option value="50">50%</option>
+            <option value="62.5">62.5%</option>
+            <option value="75" selected>75%</option>
+            <option value="87.5">87.5%</option>
+          </select>
+        </label>
         <label style="display: flex; flex-direction: row; align-items: center; gap: 8px;" title="Smooth magnitude across time to reduce warble from quantization">
           <input type="checkbox" id="smoothMagnitude">Pre-smooth Spectrogram
         </label>
@@ -2754,17 +2771,23 @@ async function processImage(){
       log('Encoding audio...');
       await yieldUI();
       let blob, ext;
-      const compressed = await encodeToCompressed(signal, sampleRate);
-      if(compressed){
-        blob = compressed.blob;
-        ext = compressed.mimeType.includes('webm') ? 'webm'
-            : compressed.mimeType.includes('ogg') ? 'ogg' : 'm4a';
-        log(`Encoded as ${ext} (${(blob.size/1024).toFixed(0)} KB)`);
+      const opus = await encodeToOpusWebM(signal, sampleRate);
+      if(opus){
+        blob = opus.blob; ext = opus.ext;
+        log(`Encoded as webm/opus via WebCodecs (${(blob.size/1024).toFixed(0)} KB)`);
       } else {
-        const wav = encodeWAV(signal, sampleRate);
-        blob = new Blob([wav], {type:'audio/wav'});
-        ext = 'wav';
-        log(`Encoded as WAV (${(blob.size/1024).toFixed(0)} KB)`);
+        const compressed = await encodeToCompressed(signal, sampleRate);
+        if(compressed){
+          blob = compressed.blob;
+          ext = compressed.mimeType.includes('webm') ? 'webm'
+              : compressed.mimeType.includes('ogg') ? 'ogg' : 'm4a';
+          log(`Encoded as ${ext} via MediaRecorder (${(blob.size/1024).toFixed(0)} KB)`);
+        } else {
+          const wav = encodeWAV(signal, sampleRate);
+          blob = new Blob([wav], {type:'audio/wav'});
+          ext = 'wav';
+          log(`Encoded as WAV (${(blob.size/1024).toFixed(0)} KB)`);
+        }
       }
       const url = URL.createObjectURL(blob);
       const a = document.getElementById('audioPlayer');
@@ -2796,6 +2819,171 @@ async function processImage(){
 
       console.log(`[PLAYHEAD] Initialized successfully`);
     }
+
+    // WebCodecs Opus encoder with WebM (EBML) muxer.
+    // Encodes faster than real-time — no MediaRecorder wall-clock constraint.
+    // Returns {blob, ext:'webm'} or null if AudioEncoder/Opus is unavailable.
+    async function encodeToOpusWebM(signal, sampleRate){
+      if(typeof AudioEncoder === 'undefined') return null;
+
+      const SR = 48000, FRAME = 960; // 20 ms at 48 kHz
+
+      let check;
+      try{ check = await AudioEncoder.isConfigSupported({ codec:'opus', sampleRate:SR, numberOfChannels:1 }); }
+      catch(e){ return null; }
+      if(!check.supported) return null;
+
+      const pcm = (sampleRate === SR) ? signal : _resampleLinear(signal, sampleRate, SR);
+      const totalSamples = pcm.length;
+
+      const packets = [];
+      let firstMeta = null, encErr = null;
+
+      const enc = new AudioEncoder({
+        output(chunk, meta){
+          if(meta?.decoderConfig && !firstMeta) firstMeta = meta;
+          const buf = new Uint8Array(chunk.byteLength);
+          chunk.copyTo(buf);
+          packets.push(buf);
+        },
+        error(e){ encErr = e; }
+      });
+
+      enc.configure({ codec:'opus', sampleRate:SR, numberOfChannels:1, bitrate:64000 });
+
+      let ts = 0;
+      for(let off = 0; off < pcm.length; off += FRAME){
+        const slice = pcm.subarray(off, off + FRAME);
+        let frame = slice;
+        if(slice.length < FRAME){ frame = new Float32Array(FRAME); frame.set(slice); }
+        const ad = new AudioData({ format:'f32-planar', sampleRate:SR, numberOfFrames:FRAME, numberOfChannels:1, timestamp:ts, data:frame });
+        enc.encode(ad); ad.close();
+        ts += 20000;
+      }
+
+      await enc.flush();
+      enc.close();
+
+      if(encErr || packets.length === 0) return null;
+
+      let preSkip = 312;
+      if(firstMeta?.decoderConfig?.description){
+        const d = firstMeta.decoderConfig.description;
+        const dv = (d instanceof ArrayBuffer) ? new DataView(d) : new DataView(d.buffer, d.byteOffset, d.byteLength);
+        preSkip = dv.getUint16(10, true);
+      }
+
+      const webm = _muxWebM(packets, preSkip, totalSamples, sampleRate, 'ReSounder');
+      return { blob: new Blob([webm], { type:'audio/webm; codecs=opus' }), ext:'webm' };
+    }
+
+    // Linear resampler — good enough for the ~10% rate differences typical here
+    function _resampleLinear(input, fromRate, toRate){
+      const ratio = fromRate / toRate;
+      const out = new Float32Array(Math.round(input.length / ratio));
+      for(let i = 0; i < out.length; i++){
+        const p = i * ratio;
+        const lo = Math.floor(p);
+        const hi = Math.min(lo + 1, input.length - 1);
+        out[i] = input[lo] + (p - lo) * (input[hi] - input[lo]);
+      }
+      return out;
+    }
+
+    // Minimal WebM/Opus muxer using EBML encoding.
+    // Clusters split every 8 s to keep int16 SimpleBlock timecodes in range.
+    function _muxWebM(packets, preSkip, totalSamples, inputSampleRate, appName){
+      const SR = 48000, FRAME = 960;
+      const durationMs = totalSamples / SR * 1000;
+
+      // CodecPrivate = OpusHead (tells decoder about original sample rate + pre-skip)
+      const cp = new Uint8Array(19);
+      cp.set(new TextEncoder().encode('OpusHead'));
+      cp[8]=1; cp[9]=1; // version, channels
+      new DataView(cp.buffer).setUint16(10, preSkip, true);
+      new DataView(cp.buffer).setUint32(12, inputSampleRate, true);
+      cp[18]=0; // channel mapping family
+
+      const codecDelayNs = Math.round(preSkip / SR * 1e9);
+      const uid = new Uint8Array(8); crypto.getRandomValues(uid);
+
+      const info = _we(0x1549A966, _wc(
+        _we(0x2AD7B1, _wu(1000000, 4)),   // TimestampScale: 1 ms in ns
+        _we(0x4489,   _wf(durationMs)),    // Duration (ms, float64)
+        _we(0x4D80,   _ws(appName)),       // MuxingApp
+        _we(0x5741,   _ws(appName))        // WritingApp
+      ));
+
+      const tracks = _we(0x1654AE6B, _we(0xAE, _wc(
+        _we(0xD7,   _wu(1, 1)),            // TrackNumber
+        _we(0x73C5, uid),                  // TrackUID (random)
+        _we(0x83,   _wu(2, 1)),            // TrackType: audio
+        _we(0x86,   _ws('A_OPUS')),        // CodecID
+        _we(0x63A2, cp),                   // CodecPrivate
+        _we(0x56AA, _wu(codecDelayNs, 8)), // CodecDelay
+        _we(0x56BB, _wu(80000000, 8)),     // SeekPreRoll: 80 ms standard
+        _we(0xE1, _wc(                     // Audio
+          _we(0xB5, _wf(SR)),              // SamplingFrequency
+          _we(0x9F, _wu(1, 1))             // Channels
+        ))
+      )));
+
+      // Split packets into 8-second clusters so int16 timecodes stay in range
+      const CLUSTER_MS = 8000;
+      const clusterElems = [];
+      let i = 0;
+      while(i < packets.length){
+        const clusterTimeMs = i * 20;
+        const parts = [_we(0xE7, _wu(clusterTimeMs, 4))]; // Cluster Timestamp
+        while(i < packets.length && (i * 20 - clusterTimeMs) < CLUSTER_MS){
+          const rel = i * 20 - clusterTimeMs;
+          const sb = new Uint8Array(4 + packets[i].length);
+          sb[0]=0x81; sb[1]=(rel>>8)&0xFF; sb[2]=rel&0xFF; sb[3]=0x80; // keyframe
+          sb.set(packets[i], 4);
+          parts.push(_we(0xA3, sb)); // SimpleBlock
+          i++;
+        }
+        clusterElems.push(_we(0x1F43B675, _wc(...parts)));
+      }
+
+      const segment = _we(0x18538067, _wc(info, tracks, ...clusterElems));
+      const header  = _we(0x1A45DFA3, _wc(
+        _we(0x4286, _wu(1, 1)),  _we(0x42F7, _wu(1, 1)),   // EBMLVersion, ReadVersion
+        _we(0x42F2, _wu(4, 1)),  _we(0x42F3, _wu(8, 1)),   // MaxIDLength, MaxSizeLength
+        _we(0x4282, _ws('webm')),                           // DocType
+        _we(0x4287, _wu(4, 1)),  _we(0x4285, _wu(2, 1))    // DocTypeVersion, ReadVersion
+      ));
+
+      return _wc(header, segment);
+    }
+
+    // EBML helpers — all prefixed _w to avoid collisions
+    function _wc(...a){ // concatenate Uint8Arrays
+      let n=0; for(const x of a) n+=x.length;
+      const o=new Uint8Array(n); let p=0;
+      for(const x of a){ o.set(x,p); p+=x.length; }
+      return o;
+    }
+    function _wv(v){ // VINT size encoding
+      if(v<0x7F)      return new Uint8Array([v|0x80]);
+      if(v<0x3FFF)    return new Uint8Array([(v>>8)|0x40, v&0xFF]);
+      if(v<0x1FFFFF)  return new Uint8Array([(v>>16)|0x20,(v>>8)&0xFF,v&0xFF]);
+      return new Uint8Array([(v>>>24)|0x10,(v>>16)&0xFF,(v>>8)&0xFF,v&0xFF]);
+    }
+    function _wi(id){ // EBML element ID bytes
+      if(id<=0xFF)     return new Uint8Array([id]);
+      if(id<=0xFFFF)   return new Uint8Array([id>>8,id&0xFF]);
+      if(id<=0xFFFFFF) return new Uint8Array([id>>16,(id>>8)&0xFF,id&0xFF]);
+      return new Uint8Array([id>>>24,(id>>16)&0xFF,(id>>8)&0xFF,id&0xFF]);
+    }
+    function _we(id, data){ return _wc(_wi(id), _wv(data.length), data); } // element
+    function _wu(v, bytes){ // big-endian uint
+      const a=new Uint8Array(bytes);
+      for(let i=bytes-1;i>=0;i--){ a[i]=v&0xFF; v=Math.floor(v/256); }
+      return a;
+    }
+    function _wf(v){ const b=new ArrayBuffer(8); new DataView(b).setFloat64(0,v); return new Uint8Array(b); }
+    function _ws(s){ return new TextEncoder().encode(s); }
 
     // Encode a Float32Array to compressed audio via MediaRecorder.
     // Tries webm/opus → ogg/opus → mp4/aac in order; returns null if unsupported.
@@ -4080,6 +4268,22 @@ async function processImage(){
 
       // Update Mel Type dropdown visibility based on loaded scale
       if(window.updateMelTypeVisibility) window.updateMelTypeVisibility();
+
+      // Show crop auto-trim notice if this file has a SpectroGhost print border/info margin
+      const _cati = document.getElementById('cropAutoTrimInfo');
+      if(_cati){
+        const borderW = metaMap.printBorder === 'true' ? Math.round(Number(metaMap.printBorderWidth) || 0) : 0;
+        const infoH  = metaMap.printInfo  === 'true' ? Math.round(Number(metaMap.printInfoHeight)  || 0) : 0;
+        if(borderW > 0 || infoH > 0){
+          const parts = [];
+          if(borderW > 0) parts.push(`${borderW}px border`);
+          if(infoH  > 0) parts.push(`${infoH}px info margin`);
+          _cati.innerHTML = `Auto-trimmed: ${parts.join(', ')}.<br>No manual cropping needed.`;
+          _cati.style.display = '';
+        } else {
+          _cati.style.display = 'none';
+        }
+      }
     }
 
     (function(){
@@ -4089,6 +4293,7 @@ async function processImage(){
         // Reset metadata state when a new image is loaded
         window.__metadataAlreadyApplied = false;
         window.__lastMeta = null;  // Clear previous metadata to prevent stale data
+        { const _c = document.getElementById('cropAutoTrimInfo'); if(_c) _c.style.display = 'none'; }
 
         try{
           const f = ev.target.files && ev.target.files[0];
@@ -4173,6 +4378,7 @@ async function processImage(){
         // Reset metadata flag when new image is pasted
         window.__metadataAlreadyApplied = false;
         window.__lastMeta = null;
+        { const _c = document.getElementById('cropAutoTrimInfo'); if(_c) _c.style.display = 'none'; }
 
         // Clear the file input so it doesn't override the pasted image
         const fileInput = document.getElementById('imageInput');
@@ -4375,6 +4581,7 @@ async function processImage(){
         // Reset metadata flag
         window.__metadataAlreadyApplied = false;
         window.__lastMeta = null;
+        { const _c = document.getElementById('cropAutoTrimInfo'); if(_c) _c.style.display = 'none'; }
 
         // Clear file input
         const fileInput = document.getElementById('imageInput');
